@@ -1,0 +1,13 @@
+spark.twobrain.com.br {
+	# Certificado interno (Cloudflare em modo "Full" valida isso)
+	tls internal
+
+	encode gzip zstd
+
+	# Chatwoot (Rails) + WebSocket do chat em tempo real
+	reverse_proxy 127.0.0.1:3000
+
+	header {
+		Strict-Transport-Security "max-age=31536000;"
+	}
+}
