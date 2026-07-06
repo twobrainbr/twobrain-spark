@@ -290,7 +290,7 @@ export default {
 
 <template>
   <main
-    class="flex flex-col w-full min-h-screen py-20 bg-n-brand/5 dark:bg-n-background sm:px-6 lg:px-8"
+    class="flex flex-col items-center justify-center w-full min-h-screen py-12 px-4 bg-[#FAFAF8] dark:bg-n-background"
   >
     <section class="max-w-5xl mx-auto">
       <img
@@ -337,7 +337,7 @@ export default {
     <!-- Regular Login Section -->
     <section
       v-else
-      class="bg-white shadow sm:mx-auto mt-11 sm:w-full sm:max-w-lg dark:bg-n-solid-2 p-11 sm:shadow-lg sm:rounded-lg"
+      class="bg-white sm:mx-auto mt-8 w-full sm:max-w-md dark:bg-n-solid-2 p-10 rounded-[22px] border border-[#ECEBE1] dark:border-n-weak"
       :class="{
         'mb-8 mt-15': !showGoogleOAuth,
         'animate-wiggle': loginApi.hasErrored,
