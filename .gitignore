@@ -104,3 +104,7 @@ CLAUDE.local.md
 .pnpm-store/*
 local/
 Procfile.worktree
+
+# Spark — segredos: só o cofre CIFRADO é versionado; nunca o conteúdo descriptografado
+secrets/*
+!secrets/spark-vault.tar.enc
