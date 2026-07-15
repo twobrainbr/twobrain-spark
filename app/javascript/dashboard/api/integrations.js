@@ -38,13 +38,6 @@ class IntegrationsAPI extends ApiClient {
       shop_domain: shopDomain,
     });
   }
-
-  connectNerk({ baseUrl, apiToken }) {
-    return axios.post(`${this.baseUrl()}/integrations/nerk`, {
-      base_url: baseUrl,
-      api_token: apiToken,
-    });
-  }
 }
 
 export default new IntegrationsAPI();

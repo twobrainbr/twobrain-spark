@@ -54,3 +54,13 @@
   title: 'NERK Product Search'
   description: 'Search the live NERK product catalog'
   icon: 'search'
+
+- id: nerk_club
+  title: 'NERK Club'
+  description: 'Get membership, points and wallet balance for a verified customer'
+  icon: 'star'
+
+- id: nerk_promotions
+  title: 'NERK Coupons'
+  description: 'List active public coupon codes that may be offered to customers'
+  icon: 'ticket'

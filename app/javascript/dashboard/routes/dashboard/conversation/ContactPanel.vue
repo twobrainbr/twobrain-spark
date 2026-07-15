@@ -135,6 +135,7 @@ onMounted(() => {
   store.dispatch('attributes/get', 0);
   // Load integrations to ensure linear integration state is available
   store.dispatch('integrations/get', 'linear');
+  store.dispatch('integrations/get', 'nerk');
 });
 </script>
 

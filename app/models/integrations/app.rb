@@ -60,6 +60,8 @@ class Integrations::App
       account.feature_enabled?('linear_integration') && GlobalConfigService.load('LINEAR_CLIENT_ID', nil).present?
     when 'shopify'
       shopify_enabled?(account)
+    when 'nerk'
+      nerk_enabled?(account)
     when 'leadsquared'
       account.feature_enabled?('crm_integration')
     when 'notion'
@@ -88,6 +90,8 @@ class Integrations::App
       account.webhooks.exists?
     when 'dashboard_apps'
       account.dashboard_apps.exists?
+    when 'nerk'
+      nerk_enabled?(account)
     else
       account.hooks.exists?(app_id: id)
     end
@@ -125,6 +129,10 @@ class Integrations::App
 
   def shopify_enabled?(account)
     account.feature_enabled?('shopify_integration') && GlobalConfigService.load('SHOPIFY_CLIENT_ID', nil).present?
+  end
+
+  def nerk_enabled?(account)
+    account.feature_enabled?('nerk_integration') && Integrations::Nerk::Client.configured?
   end
 
   def notion_enabled?(account)

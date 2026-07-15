@@ -1,60 +1,52 @@
 class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseController
-  before_action :fetch_hook, except: [:create]
-  before_action :validate_contact, only: [:orders]
+  before_action :ensure_nerk_enabled
+  before_action :validate_contact, only: [:context, :orders, :tracking]
 
-  def create
-    base_url = normalized_base_url
-    access_token = params.require(:api_token)
-    client = Integrations::Nerk::Client.new(base_url: base_url, access_token: access_token)
-    client.validate!
-
-    hook = Current.account.hooks.create!(
-      app_id: 'nerk',
-      reference_id: base_url,
-      access_token: access_token,
-      status: 'enabled',
-      settings: { connected_at: Time.current.iso8601 }
-    )
-    render json: { id: hook.id, app_id: hook.app_id, status: hook.status }, status: :created
-  rescue ActionController::ParameterMissing, URI::InvalidURIError => e
-    render json: { error: e.message }, status: :unprocessable_entity
+  def context
+    render json: { context: customer_context }
   rescue Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def orders
-    render json: { orders: client.orders(email: contact.email, phone: contact.phone_number) }
+    render json: { orders: customer_context.dig('commerce', 'orders') || [] }
   rescue Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def products
-    query = params.require(:query)
-    render json: { products: client.products(query: query) }
+    render json: { products: client.products(query: params.require(:query)) }
   rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def tracking
-    order_id = params.require(:order_id)
-    render json: { tracking: client.tracking(order_id: order_id) }
+    tracking = client.tracking(
+      email: contact.email,
+      phone: contact.phone_number,
+      order_number: params.require(:order_number)
+    )
+    return render json: { error: 'Order not found for this contact' }, status: :not_found if tracking.blank?
+
+    render json: { tracking: tracking }
   rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
-  def destroy
-    @hook.destroy!
-    head :ok
-  end
-
   private
 
-  def fetch_hook
-    @hook = Current.account.hooks.find_by!(app_id: 'nerk')
+  def ensure_nerk_enabled
+    return if Current.account.feature_enabled?('nerk_integration') && Integrations::Nerk::Client.configured?
+
+    render json: { error: 'NERK integration is not enabled' }, status: :forbidden
   end
 
   def client
-    @client ||= Integrations::Nerk::Client.new(base_url: @hook.reference_id, access_token: @hook.access_token)
+    @client ||= Integrations::Nerk::Client.from_installation_config
+  end
+
+  def customer_context
+    @customer_context ||= client.customer_context(email: contact.email, phone: contact.phone_number)
   end
 
   def contact
@@ -65,13 +57,5 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
     return if contact.present? && (contact.email.present? || contact.phone_number.present?)
 
     render json: { error: 'Contact information missing' }, status: :unprocessable_entity
-  end
-
-  def normalized_base_url
-    uri = URI.parse(params.require(:base_url))
-    raise URI::InvalidURIError, 'NERK URL must use HTTPS' unless uri.is_a?(URI::HTTPS)
-    raise URI::InvalidURIError, 'NERK URL host is required' if uri.host.blank?
-
-    "#{uri.scheme}://#{uri.host}#{":#{uri.port}" unless uri.default_port == uri.port}"
   end
 end

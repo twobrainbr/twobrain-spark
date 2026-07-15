@@ -40,14 +40,16 @@ class Captain::Llm::AssistantChatService < Llm::BaseAiService
   end
 
   def nerk_enabled?
-    @assistant.account.hooks.enabled.exists?(app_id: 'nerk')
+    @assistant.account.feature_enabled?('nerk_integration') && Integrations::Nerk::Client.configured?
   end
 
   def nerk_tools
     [
       Captain::Tools::NerkOrdersService.new(@assistant, conversation: @conversation),
       Captain::Tools::NerkTrackingService.new(@assistant, conversation: @conversation),
-      Captain::Tools::NerkProductSearchService.new(@assistant, conversation: @conversation)
+      Captain::Tools::NerkProductSearchService.new(@assistant, conversation: @conversation),
+      Captain::Tools::NerkClubService.new(@assistant, conversation: @conversation),
+      Captain::Tools::NerkPromotionsService.new(@assistant, conversation: @conversation)
     ]
   end
 
@@ -57,7 +59,7 @@ class Captain::Llm::AssistantChatService < Llm::BaseAiService
       content: Captain::Llm::SystemPromptsService.assistant_response_generator(
         @assistant.name, @assistant.config['product_name'], @assistant.config.merge('timezone' => inbox_timezone),
         contact: contact_attributes,
-        custom_tools: custom_tools_metadata
+        custom_tools: custom_tools_metadata + nerk_tools_metadata
       )
     }
   end
@@ -68,6 +70,18 @@ class Captain::Llm::AssistantChatService < Llm::BaseAiService
     @assistant.account.captain_custom_tools.enabled.map do |ct|
       { name: ct.slug, description: ct.description }
     end
+  end
+
+  def nerk_tools_metadata
+    return [] unless nerk_enabled?
+
+    [
+      { name: 'nerk_orders', description: 'Find orders, payments, refunds and returns for the verified customer' },
+      { name: 'nerk_tracking', description: 'Track an order owned by the verified customer' },
+      { name: 'nerk_product_search', description: 'Search the live NERK product catalog' },
+      { name: 'nerk_club', description: 'Get NERK Club points and wallet balance for the verified customer' },
+      { name: 'nerk_promotions', description: 'List active public NERK coupon codes' }
+    ]
   end
 
   def custom_tools_enabled?

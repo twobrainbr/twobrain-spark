@@ -414,6 +414,18 @@
   type: secret
 # ------- End of Shopify Related Config ------- #
 
+# ------- NERK Commerce Integration Config ------- #
+- name: NERK_API_BASE_URL
+  display_title: 'NERK API Base URL'
+  description: 'HTTPS base URL of the NERK Admin API, for example https://admin.nerk.com.br'
+  locked: false
+- name: NERK_API_TOKEN
+  display_title: 'NERK API Token'
+  description: 'Scoped read-only token created in NERK Admin for Chatwoot'
+  locked: false
+  type: secret
+# ------- End of NERK Commerce Integration Config ------- #
+
 # ------- Instagram Channel Related Config ------- #
 - name: INSTAGRAM_APP_ID
   display_title: 'Instagram App ID'

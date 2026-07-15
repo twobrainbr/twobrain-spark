@@ -425,10 +425,15 @@
       }
     },
     "NERK": {
-      "ERROR": "Error loading NERK orders",
+      "ERROR": "Error loading NERK commerce data",
+      "MISSING_IDENTITY": "Add an email or phone number to identify this contact",
       "NO_ORDERS": "No NERK orders found for this contact",
+      "IDENTITY_MATCHED": "NERK customer matched",
+      "CLUB_POINTS": "NERK Club points",
       "ORDER_NUMBER": "Order #{number}",
       "ITEMS": "{count} item | {count} items",
+      "PAYMENT_STATUS": "Payment: {status}",
+      "REFUNDED": "Refunded: {amount}",
       "SHIPMENT": "{service} · {tracking}"
     }
   },

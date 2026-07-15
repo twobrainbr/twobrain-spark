@@ -1,25 +1,27 @@
 class Captain::Tools::NerkBaseTool < Captain::Tools::BasePublicTool
+  VERIFICATION_REQUIRED = 'Identity verification required. Ask the customer to sign in to NERK and reopen the chat before sharing personal commerce data.'.freeze
+
   def active?
-    nerk_hook.present?
+    @assistant.account.feature_enabled?('nerk_integration') && Integrations::Nerk::Client.configured?
   end
 
   private
 
-  def nerk_hook
-    @nerk_hook ||= @assistant.account.hooks.enabled.find_by(app_id: 'nerk')
-  end
-
   def nerk_client
-    @nerk_client ||= Integrations::Nerk::Client.new(
-      base_url: nerk_hook.reference_id,
-      access_token: nerk_hook.access_token
-    )
+    @nerk_client ||= Integrations::Nerk::Client.from_installation_config
   end
 
-  def contact_orders(tool_context)
-    contact = find_contact(tool_context&.state)
-    return [] if contact.blank?
+  def verified_contact(tool_context)
+    state = tool_context&.state
+    return unless state&.dig(:contact_inbox, :hmac_verified)
 
-    nerk_client.orders(email: contact.email, phone: contact.phone_number)
+    find_contact(state)
+  end
+
+  def verified_customer_context(tool_context)
+    contact = verified_contact(tool_context)
+    return unless contact
+
+    nerk_client.customer_context(email: contact.email, phone: contact.phone_number)
   end
 end

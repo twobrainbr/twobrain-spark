@@ -13,13 +13,19 @@ class NerkAPI extends ApiClient {
     });
   }
 
+  getContext(contactId) {
+    return axios.get(`${this.url}/context`, {
+      params: { contact_id: contactId },
+    });
+  }
+
   searchProducts(query) {
     return axios.get(`${this.url}/products`, { params: { query } });
   }
 
-  getTracking(orderId) {
+  getTracking(contactId, orderNumber) {
     return axios.get(`${this.url}/tracking`, {
-      params: { order_id: orderId },
+      params: { contact_id: contactId, order_number: orderNumber },
     });
   }
 }
