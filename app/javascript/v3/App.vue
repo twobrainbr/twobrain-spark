@@ -6,12 +6,46 @@ export default {
   data() {
     return { theme: 'light' };
   },
+  computed: {
+    currentAccount() {
+      const accountId = Number(this.$route?.params?.accountId);
+      return accountId
+        ? this.$store.getters['accounts/getAccount'](accountId)
+        : null;
+    },
+  },
+  watch: {
+    currentAccount: {
+      deep: true,
+      handler() {
+        this.applyAccountBrandColor();
+      },
+    },
+  },
   mounted() {
     this.setColorTheme();
     this.listenToThemeChanges();
     this.setLocale(window.chatwootConfig.selectedLocale);
+    this.applyAccountBrandColor();
   },
   methods: {
+    applyAccountBrandColor() {
+      const enrichedColor =
+        this.currentAccount?.custom_attributes?.brand_info?.colors?.[0]?.hex;
+      const color =
+        this.currentAccount?.custom_attributes?.brand_color ||
+        enrichedColor ||
+        '#5E8902';
+      const match = color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
+      const rgb = match
+        ? match
+            .slice(1)
+            .map(channel => Number.parseInt(channel, 16))
+            .join(' ')
+        : '94 137 2';
+
+      document.documentElement.style.setProperty('--brand-color', rgb);
+    },
     setColorTheme() {
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
         this.theme = 'dark';

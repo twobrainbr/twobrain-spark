@@ -1,5 +1,6 @@
 json.settings resource.settings
 json.created_at resource.created_at
+json.logo_url url_for(resource.logo) if resource.logo.attached?
 if resource.custom_attributes.present?
   json.custom_attributes do
     json.plan_name resource.custom_attributes['plan_name']
@@ -13,6 +14,7 @@ if resource.custom_attributes.present?
     json.logo resource.custom_attributes['logo'] if resource.custom_attributes['logo'].present?
     json.referral_source resource.custom_attributes['referral_source'] if resource.custom_attributes['referral_source'].present?
     json.brand_info resource.custom_attributes['brand_info'] if resource.custom_attributes['brand_info'].present?
+    json.brand_color resource.custom_attributes['brand_color'] if resource.custom_attributes['brand_color'].present?
     json.onboarding_step resource.onboarding_step if resource.onboarding_step.present?
     if resource.custom_attributes['help_center_generation_id'].present?
       json.help_center_generation_id resource.custom_attributes['help_center_generation_id']

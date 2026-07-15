@@ -23,6 +23,7 @@
 #
 
 class Account < ApplicationRecord
+  ALLOWED_LOGO_CONTENT_TYPES = %w[image/jpeg image/png image/webp].freeze
   # used for single column multi flags
   include FlagShihTzu
   include Reportable
@@ -38,6 +39,8 @@ class Account < ApplicationRecord
   }.freeze
 
   validates :name, presence: true
+  has_one_attached :logo
+  validate :acceptable_logo, if: -> { logo.changed? }
 
   # `domain` is the inbound email domain used to construct reply addresses
   # (see `inbound_email_domain`). Do not repurpose it for a website or any
@@ -57,6 +60,13 @@ class Account < ApplicationRecord
   store_accessor :settings, :keep_pending_on_bot_failure
   store_accessor :settings, :captain_auto_resolve_mode
   include AccountCaptainAutoResolve
+
+  def acceptable_logo
+    return unless logo.attached?
+
+    errors.add(:logo, 'is too big') if logo.byte_size > 5.megabytes
+    errors.add(:logo, 'filetype not supported') unless ALLOWED_LOGO_CONTENT_TYPES.include?(logo.content_type)
+  end
 
   has_many :account_users, dependent: :destroy_async
   has_many :agent_bot_inboxes, dependent: :destroy_async

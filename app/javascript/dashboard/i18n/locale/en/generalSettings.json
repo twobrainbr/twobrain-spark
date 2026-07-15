@@ -40,6 +40,18 @@
         "TITLE": "General settings",
         "NOTE": ""
       },
+      "BRANDING": {
+        "TITLE": "Account appearance",
+        "NOTE": "This logo and brand color are shown to every user in this account. Each account keeps its own appearance.",
+        "LOGO": "Account logo",
+        "LOGO_HELP": "Upload a PNG, JPG or WebP image up to 5 MB.",
+        "COLOR": "Brand color",
+        "COLOR_HELP": "Used for buttons, links, focus states and highlights throughout the dashboard.",
+        "COLOR_ERROR": "Enter a valid six-digit hexadecimal color.",
+        "SUBMIT": "Save appearance",
+        "SUCCESS": "Account appearance updated successfully",
+        "ERROR": "Could not update account appearance, try again!"
+      },
       "ACCOUNT_ID": {
         "TITLE": "Account ID",
         "NOTE": "This ID is required if you are building an API based integration"
