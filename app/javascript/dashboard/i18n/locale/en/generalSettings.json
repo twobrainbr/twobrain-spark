@@ -42,13 +42,46 @@
       },
       "BRANDING": {
         "TITLE": "Account appearance",
-        "NOTE": "This logo and brand color are shown to every user in this account. Each account keeps its own appearance.",
+        "NOTE": "Customize the dashboard for every user in this account. The account logo is used only in the sidebar and never replaces the chat widget identity.",
         "LOGO": "Account logo",
         "LOGO_HELP": "Upload a PNG, JPG or WebP image up to 5 MB.",
-        "COLOR": "Brand color",
-        "COLOR_HELP": "Used for buttons, links, focus states and highlights throughout the dashboard.",
         "COLOR_ERROR": "Enter a valid six-digit hexadecimal color.",
+        "FIELDS": {
+          "brand_color": {
+            "LABEL": "Brand color",
+            "HELP": "Primary buttons, selections and highlights."
+          },
+          "accent_color": {
+            "LABEL": "Accent color",
+            "HELP": "Links, hover states and secondary emphasis."
+          },
+          "background_color": {
+            "LABEL": "Workspace background",
+            "HELP": "Main dashboard page background."
+          },
+          "surface_color": {
+            "LABEL": "Surface color",
+            "HELP": "Cards, panels, menus and content surfaces."
+          },
+          "sidebar_color": {
+            "LABEL": "Sidebar background",
+            "HELP": "Background used by the account navigation sidebar."
+          },
+          "text_color": {
+            "LABEL": "Primary text",
+            "HELP": "Headings and primary dashboard text."
+          }
+        },
+        "FONT_FAMILY": "Typography",
+        "FONT_HELP": "Applied to the dashboard for every user in this account.",
+        "FONTS": {
+          "system": "System interface",
+          "hanken": "Hanken Grotesk",
+          "inter": "Inter",
+          "serif": "Editorial serif"
+        },
         "SUBMIT": "Save appearance",
+        "RESET": "Restore defaults",
         "SUCCESS": "Account appearance updated successfully",
         "ERROR": "Could not update account appearance, try again!"
       },

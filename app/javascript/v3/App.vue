@@ -1,6 +1,23 @@
 <script>
 import SnackbarContainer from './components/SnackBar/Container.vue';
 
+const DEFAULT_APPEARANCE = {
+  brand_color: '#5E8902',
+  accent_color: '#507605',
+  background_color: '#F7F7F7',
+  surface_color: '#FEFEFE',
+  sidebar_color: '#F7F7F7',
+  text_color: '#1C2024',
+  font_family: 'system',
+};
+
+const FONT_CLASSES = {
+  system: 'font-system',
+  hanken: 'font-sans',
+  inter: 'font-inter',
+  serif: 'font-serif',
+};
+
 export default {
   components: { SnackbarContainer },
   data() {
@@ -13,12 +30,18 @@ export default {
         ? this.$store.getters['accounts/getAccount'](accountId)
         : null;
     },
+    fontClass() {
+      const fontFamily =
+        this.currentAccount?.custom_attributes?.font_family ||
+        DEFAULT_APPEARANCE.font_family;
+      return FONT_CLASSES[fontFamily] || FONT_CLASSES.system;
+    },
   },
   watch: {
     currentAccount: {
       deep: true,
       handler() {
-        this.applyAccountBrandColor();
+        this.applyAccountAppearance();
       },
     },
   },
@@ -26,25 +49,55 @@ export default {
     this.setColorTheme();
     this.listenToThemeChanges();
     this.setLocale(window.chatwootConfig.selectedLocale);
-    this.applyAccountBrandColor();
+    this.applyAccountAppearance();
   },
   methods: {
-    applyAccountBrandColor() {
-      const enrichedColor =
-        this.currentAccount?.custom_attributes?.brand_info?.colors?.[0]?.hex;
-      const color =
-        this.currentAccount?.custom_attributes?.brand_color ||
-        enrichedColor ||
-        '#5E8902';
-      const match = color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
-      const rgb = match
-        ? match
-            .slice(1)
-            .map(channel => Number.parseInt(channel, 16))
-            .join(' ')
-        : '94 137 2';
+    colorToRgb(color, fallback) {
+      const match = (color || fallback).match(
+        /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i
+      );
+      return (
+        match || fallback.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i)
+      )
+        .slice(1)
+        .map(channel => Number.parseInt(channel, 16))
+        .join(' ');
+    },
+    applyAccountAppearance() {
+      const attributes = this.currentAccount?.custom_attributes || {};
+      const enrichedColor = attributes.brand_info?.colors?.[0]?.hex;
+      const appearance = {
+        ...DEFAULT_APPEARANCE,
+        ...attributes,
+        brand_color:
+          attributes.brand_color ||
+          enrichedColor ||
+          DEFAULT_APPEARANCE.brand_color,
+        accent_color:
+          attributes.accent_color ||
+          attributes.brand_color ||
+          enrichedColor ||
+          DEFAULT_APPEARANCE.accent_color,
+      };
+      const variables = {
+        '--brand-color': 'brand_color',
+        '--blue-10': 'accent_color',
+        '--blue-11': 'accent_color',
+        '--background-color': 'background_color',
+        '--surface-1': 'surface_color',
+        '--surface-2': 'surface_color',
+        '--solid-1': 'surface_color',
+        '--account-sidebar-color': 'sidebar_color',
+        '--slate-12': 'text_color',
+      };
 
-      document.documentElement.style.setProperty('--brand-color', rgb);
+      Object.entries(variables).forEach(([variable, field]) => {
+        const rgb = this.colorToRgb(
+          appearance[field],
+          DEFAULT_APPEARANCE[field]
+        );
+        document.documentElement.style.setProperty(variable, rgb);
+      });
     },
     setColorTheme() {
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -78,7 +131,10 @@ export default {
 </script>
 
 <template>
-  <div class="h-full min-h-screen w-full antialiased" :class="theme">
+  <div
+    class="h-full min-h-screen w-full antialiased"
+    :class="[theme, fontClass]"
+  >
     <router-view />
     <SnackbarContainer />
   </div>

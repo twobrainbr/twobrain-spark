@@ -42,6 +42,7 @@ const tailwindConfig = {
         sans: ['Hanken Grotesk', ...defaultSansFonts],
         inter: ['Inter', ...defaultSansFonts],
         interDisplay: ['InterDisplay', ...defaultSansFonts],
+        system: defaultSansFonts,
       },
       boxShadow: {
         sm: 'none',

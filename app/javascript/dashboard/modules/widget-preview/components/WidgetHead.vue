@@ -38,6 +38,11 @@ const isDefaultScreen = computed(() => {
           class="mr-2 rounded-full logo"
           :class="!isDefaultScreen ? 'h-8 w-8 mb-1' : 'h-12 w-12 mb-2'"
         />
+        <span
+          v-else
+          class="i-lucide-message-circle mr-2 text-n-slate-12"
+          :class="!isDefaultScreen ? 'size-8 mb-1' : 'size-12 mb-2'"
+        />
         <div v-if="!isDefaultScreen">
           <div class="flex items-center justify-start gap-1">
             <span class="text-base font-medium leading-3 text-n-slate-12">
