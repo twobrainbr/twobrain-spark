@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useStore } from 'dashboard/composables/store';
@@ -8,16 +8,11 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import NextInput from 'next/input/Input.vue';
 import SectionLayout from './SectionLayout.vue';
+import {
+  ACCOUNT_APPEARANCE_PREVIEW_EVENT,
+  DEFAULT_ACCOUNT_APPEARANCE,
+} from 'dashboard/helper/accountTheme';
 
-const DEFAULT_APPEARANCE = {
-  brand_color: '#5E8902',
-  accent_color: '#507605',
-  background_color: '#F7F7F7',
-  surface_color: '#FEFEFE',
-  sidebar_color: '#F7F7F7',
-  text_color: '#1C2024',
-  font_family: 'system',
-};
 const HEX_COLOR_PATTERN = /^#[\dA-F]{6}$/i;
 
 const COLOR_FIELDS = [
@@ -33,7 +28,7 @@ const { t } = useI18n();
 const store = useStore();
 const { currentAccount } = useAccount();
 
-const appearance = reactive({ ...DEFAULT_APPEARANCE });
+const appearance = reactive({ ...DEFAULT_ACCOUNT_APPEARANCE });
 const logoFile = ref(null);
 const logoUrl = ref('');
 const removeLogo = ref(false);
@@ -91,11 +86,15 @@ const enrichedColor = account =>
 const initializeBranding = account => {
   if (!account) return;
 
-  Object.assign(appearance, DEFAULT_APPEARANCE, account.custom_attributes);
+  Object.assign(
+    appearance,
+    DEFAULT_ACCOUNT_APPEARANCE,
+    account.custom_attributes
+  );
   appearance.brand_color =
     account.custom_attributes?.brand_color ||
     enrichedColor(account) ||
-    DEFAULT_APPEARANCE.brand_color;
+    DEFAULT_ACCOUNT_APPEARANCE.brand_color;
   appearance.accent_color =
     account.custom_attributes?.accent_color || appearance.brand_color;
   logoUrl.value = account.logo_url || enrichedLogo(account);
@@ -108,6 +107,26 @@ watch(currentAccount, initializeBranding, { immediate: true });
 const areColorsValid = computed(() =>
   COLOR_FIELDS.every(field => HEX_COLOR_PATTERN.test(appearance[field]))
 );
+
+watch(
+  appearance,
+  value => {
+    if (!areColorsValid.value) return;
+
+    window.dispatchEvent(
+      new CustomEvent(ACCOUNT_APPEARANCE_PREVIEW_EVENT, {
+        detail: { ...value },
+      })
+    );
+  },
+  { deep: true }
+);
+
+onBeforeUnmount(() => {
+  window.dispatchEvent(
+    new CustomEvent(ACCOUNT_APPEARANCE_PREVIEW_EVENT, { detail: null })
+  );
+});
 
 const updateLogo = ({ file, url }) => {
   logoFile.value = file;
@@ -125,7 +144,8 @@ const updateColorFromPicker = (field, event) => {
   appearance[field] = event.target.value.toUpperCase();
 };
 
-const resetAppearance = () => Object.assign(appearance, DEFAULT_APPEARANCE);
+const resetAppearance = () =>
+  Object.assign(appearance, DEFAULT_ACCOUNT_APPEARANCE);
 
 const saveBranding = async () => {
   if (!areColorsValid.value) {
@@ -195,7 +215,7 @@ const saveBranding = async () => {
               :value="
                 HEX_COLOR_PATTERN.test(appearance[field.name])
                   ? appearance[field.name]
-                  : DEFAULT_APPEARANCE[field.name]
+                  : DEFAULT_ACCOUNT_APPEARANCE[field.name]
               "
               type="color"
               class="size-10 cursor-pointer rounded-lg border border-n-weak bg-n-background p-1"
@@ -206,7 +226,7 @@ const saveBranding = async () => {
               v-model="appearance[field.name]"
               class="max-w-40"
               type="text"
-              :placeholder="DEFAULT_APPEARANCE[field.name]"
+              :placeholder="DEFAULT_ACCOUNT_APPEARANCE[field.name]"
             />
           </div>
           <span class="text-xs text-n-slate-10">

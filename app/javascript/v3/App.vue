@@ -1,27 +1,16 @@
 <script>
 import SnackbarContainer from './components/SnackBar/Container.vue';
-
-const DEFAULT_APPEARANCE = {
-  brand_color: '#5E8902',
-  accent_color: '#507605',
-  background_color: '#F7F7F7',
-  surface_color: '#FEFEFE',
-  sidebar_color: '#F7F7F7',
-  text_color: '#1C2024',
-  font_family: 'system',
-};
-
-const FONT_CLASSES = {
-  system: 'font-system',
-  hanken: 'font-sans',
-  inter: 'font-inter',
-  serif: 'font-serif',
-};
+import {
+  ACCOUNT_APPEARANCE_PREVIEW_EVENT,
+  ACCOUNT_FONT_CLASSES,
+  DEFAULT_ACCOUNT_APPEARANCE,
+  applyAccountAppearance,
+} from 'dashboard/helper/accountTheme';
 
 export default {
   components: { SnackbarContainer },
   data() {
-    return { theme: 'light' };
+    return { theme: 'light', appearancePreview: null };
   },
   computed: {
     currentAccount() {
@@ -32,13 +21,20 @@ export default {
     },
     fontClass() {
       const fontFamily =
+        this.appearancePreview?.font_family ||
         this.currentAccount?.custom_attributes?.font_family ||
-        DEFAULT_APPEARANCE.font_family;
-      return FONT_CLASSES[fontFamily] || FONT_CLASSES.system;
+        DEFAULT_ACCOUNT_APPEARANCE.font_family;
+      return ACCOUNT_FONT_CLASSES[fontFamily] || ACCOUNT_FONT_CLASSES.system;
     },
   },
   watch: {
     currentAccount: {
+      deep: true,
+      handler() {
+        this.applyAccountAppearance();
+      },
+    },
+    appearancePreview: {
       deep: true,
       handler() {
         this.applyAccountAppearance();
@@ -49,55 +45,25 @@ export default {
     this.setColorTheme();
     this.listenToThemeChanges();
     this.setLocale(window.chatwootConfig.selectedLocale);
+    window.addEventListener(
+      ACCOUNT_APPEARANCE_PREVIEW_EVENT,
+      this.updateAppearancePreview
+    );
     this.applyAccountAppearance();
   },
+  beforeUnmount() {
+    window.removeEventListener(
+      ACCOUNT_APPEARANCE_PREVIEW_EVENT,
+      this.updateAppearancePreview
+    );
+  },
   methods: {
-    colorToRgb(color, fallback) {
-      const match = (color || fallback).match(
-        /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i
-      );
-      return (
-        match || fallback.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i)
-      )
-        .slice(1)
-        .map(channel => Number.parseInt(channel, 16))
-        .join(' ');
+    updateAppearancePreview(event) {
+      this.appearancePreview = event.detail;
     },
     applyAccountAppearance() {
       const attributes = this.currentAccount?.custom_attributes || {};
-      const enrichedColor = attributes.brand_info?.colors?.[0]?.hex;
-      const appearance = {
-        ...DEFAULT_APPEARANCE,
-        ...attributes,
-        brand_color:
-          attributes.brand_color ||
-          enrichedColor ||
-          DEFAULT_APPEARANCE.brand_color,
-        accent_color:
-          attributes.accent_color ||
-          attributes.brand_color ||
-          enrichedColor ||
-          DEFAULT_APPEARANCE.accent_color,
-      };
-      const variables = {
-        '--brand-color': 'brand_color',
-        '--blue-10': 'accent_color',
-        '--blue-11': 'accent_color',
-        '--background-color': 'background_color',
-        '--surface-1': 'surface_color',
-        '--surface-2': 'surface_color',
-        '--solid-1': 'surface_color',
-        '--account-sidebar-color': 'sidebar_color',
-        '--slate-12': 'text_color',
-      };
-
-      Object.entries(variables).forEach(([variable, field]) => {
-        const rgb = this.colorToRgb(
-          appearance[field],
-          DEFAULT_APPEARANCE[field]
-        );
-        document.documentElement.style.setProperty(variable, rgb);
-      });
+      applyAccountAppearance({ ...attributes, ...this.appearancePreview });
     },
     setColorTheme() {
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
