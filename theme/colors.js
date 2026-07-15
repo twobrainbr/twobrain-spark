@@ -1,6 +1,4 @@
 const {
-  blue,
-  blueDark,
   green,
   greenDark,
   yellow,
@@ -228,7 +226,7 @@ export const colors = {
     },
 
     black: '#000000',
-    brand: '#5E8902',
+    brand: 'rgb(var(--brand-color) / <alpha-value>)',
     portal: 'var(--dynamic-portal-color)',
     'portal-soft': 'var(--dynamic-portal-color-soft)',
     'portal-faint': 'var(--dynamic-portal-color-faint)',

@@ -42,7 +42,7 @@ const emit = defineEmits([
   'closeMobileSidebar',
 ]);
 
-const { accountScopedRoute, isOnChatwootCloud } = useAccount();
+const { accountScopedRoute, currentAccount, isOnChatwootCloud } = useAccount();
 const store = useStore();
 const searchShortcut = useKbd([`$mod`, 'k']);
 const { t } = useI18n();
@@ -54,6 +54,14 @@ const isRTL = useMapGetter('accounts/isRTL');
 
 const { width: windowWidth } = useWindowSize();
 const isMobile = computed(() => windowWidth.value < 768);
+const accountLogoUrl = computed(() => {
+  if (currentAccount.value?.logo_url) return currentAccount.value.logo_url;
+
+  const logos =
+    currentAccount.value?.custom_attributes?.brand_info?.logos || [];
+  const squareLogo = logos.find(logo => logo.resolution?.aspect_ratio === 1);
+  return (squareLogo || logos[0])?.url || '';
+});
 
 const accountId = useMapGetter('getCurrentAccountId');
 const currentUserId = useMapGetter('getCurrentUserID');
@@ -889,7 +897,13 @@ const menuItems = computed(() => {
         </template>
         <template v-else>
           <div class="grid flex-shrink-0 place-content-center size-6">
-            <Logo class="size-4" />
+            <img
+              v-if="accountLogoUrl"
+              :src="accountLogoUrl"
+              :alt="currentAccount.name"
+              class="size-5 object-contain"
+            />
+            <Logo v-else class="size-4" />
           </div>
           <div class="flex-shrink-0 w-px h-3 bg-n-strong" />
           <SidebarAccountSwitcher

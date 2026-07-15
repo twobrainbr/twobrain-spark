@@ -2,6 +2,7 @@
 @layer base {
   // NEXT COLORS START
   :root {
+    --brand-color: 94 137 2;
     // slate
     --slate-1: 252 252 253;
     --slate-2: 249 249 251;
@@ -154,6 +155,7 @@
   }
 
   .dark {
+    --brand-color: 94 137 2;
     // slate
     --slate-1: 17 17 19;
     --slate-2: 24 25 27;
