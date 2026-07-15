@@ -12,21 +12,19 @@ const {
 } = require('@radix-ui/colors');
 
 export const colors = {
-  // Spark — paleta primária (verde da marca). Escala clara -> escura.
-  // 200/300 = lime de acento; 500 = primário legível com texto branco.
   woot: {
-    25: '#FBFFE4',
-    50: '#F4FFC5',
-    75: '#E8FF92',
-    100: '#D5FF54',
-    200: '#C0FA21',
-    300: '#A1E101',
-    400: '#7CB400',
-    500: '#5E8902',
-    600: '#4B6B09',
-    700: '#3F5A0D',
-    800: '#2A4A08',
-    900: '#203300',
+    25: 'rgb(var(--woot-25) / <alpha-value>)',
+    50: 'rgb(var(--woot-50) / <alpha-value>)',
+    75: 'rgb(var(--woot-75) / <alpha-value>)',
+    100: 'rgb(var(--woot-100) / <alpha-value>)',
+    200: 'rgb(var(--woot-200) / <alpha-value>)',
+    300: 'rgb(var(--woot-300) / <alpha-value>)',
+    400: 'rgb(var(--woot-400) / <alpha-value>)',
+    500: 'rgb(var(--woot-500) / <alpha-value>)',
+    600: 'rgb(var(--woot-600) / <alpha-value>)',
+    700: 'rgb(var(--woot-700) / <alpha-value>)',
+    800: 'rgb(var(--woot-800) / <alpha-value>)',
+    900: 'rgb(var(--woot-900) / <alpha-value>)',
   },
   green: {
     50: greenDark.green12,
