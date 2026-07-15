@@ -38,6 +38,7 @@ class Account < ApplicationRecord
   }.freeze
 
   validates :name, presence: true
+
   # `domain` is the inbound email domain used to construct reply addresses
   # (see `inbound_email_domain`). Do not repurpose it for a website or any
   # non-mail-related domain.
@@ -111,6 +112,10 @@ class Account < ApplicationRecord
   after_create_commit :notify_creation
   after_update_commit :clear_unread_conversation_counts_cache, if: :saved_change_to_feature_conversation_unread_counts?
   after_destroy :remove_account_sequences
+
+  def feature_nerk_integration
+    feature_nerk_integration?
+  end
 
   def agents
     users.where(account_users: { role: :agent })

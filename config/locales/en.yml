@@ -30,6 +30,10 @@
 # available at https://guides.rubyonrails.org/i18n.html.
 
 en:
+  helpers:
+    label:
+      account:
+        feature_nerk_integration: NERK Commerce integration
   hello: 'Hello world'
   inbox:
     reauthorization:
