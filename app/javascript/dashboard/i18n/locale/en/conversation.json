@@ -390,6 +390,7 @@
       "MACROS": "Macros",
       "LINEAR_ISSUES": "Linked Linear Issues",
       "SHOPIFY_ORDERS": "Shopify Orders",
+      "NERK_ORDERS": "NERK Orders",
       "SHARED_FILES": "Attachments"
     },
     "SHARED_FILES": {
@@ -422,6 +423,13 @@
         "PARTIALLY_FULFILLED": "Partially Fulfilled",
         "UNFULFILLED": "Unfulfilled"
       }
+    },
+    "NERK": {
+      "ERROR": "Error loading NERK orders",
+      "NO_ORDERS": "No NERK orders found for this contact",
+      "ORDER_NUMBER": "Order #{number}",
+      "ITEMS": "{count} item | {count} items",
+      "SHIPMENT": "{service} · {tracking}"
     }
   },
   "CONVERSATION_CUSTOM_ATTRIBUTES": {

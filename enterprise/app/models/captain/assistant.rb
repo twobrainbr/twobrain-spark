@@ -52,6 +52,7 @@ class Captain::Assistant < ApplicationRecord
 
   def available_agent_tools
     tools = self.class.built_in_agent_tools.dup
+    tools.reject! { |tool| tool[:id].start_with?('nerk_') } unless account.hooks.enabled.exists?(app_id: 'nerk')
 
     custom_tools = account.captain_custom_tools.enabled.map(&:to_tool_metadata)
     tools.concat(custom_tools)
@@ -92,10 +93,14 @@ class Captain::Assistant < ApplicationRecord
   end
 
   def agent_tools
-    [
+    tools = [
       self.class.resolve_tool_class('faq_lookup').new(self),
       self.class.resolve_tool_class('handoff').new(self)
     ]
+    nerk_tools = %w[nerk_orders nerk_tracking nerk_product_search].filter_map do |tool_id|
+      self.class.resolve_tool_class(tool_id)&.new(self)
+    end
+    tools + nerk_tools.select(&:active?)
   end
 
   def prompt_context

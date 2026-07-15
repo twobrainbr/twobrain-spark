@@ -39,3 +39,18 @@
   title: 'Handoff to Human'
   description: 'Hand off the conversation to a human agent'
   icon: 'user-switch'
+
+- id: nerk_orders
+  title: 'NERK Orders'
+  description: 'Find recent NERK orders for the current customer'
+  icon: 'shopping-bag'
+
+- id: nerk_tracking
+  title: 'NERK Tracking'
+  description: 'Get live delivery tracking for a verified customer order'
+  icon: 'truck'
+
+- id: nerk_product_search
+  title: 'NERK Product Search'
+  description: 'Search the live NERK product catalog'
+  icon: 'search'

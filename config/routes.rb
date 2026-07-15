@@ -367,6 +367,13 @@ Rails.application.routes.draw do
                 get :orders
               end
             end
+            resource :nerk, controller: 'nerk', only: [:create, :destroy] do
+              collection do
+                get :orders
+                get :products
+                get :tracking
+              end
+            end
             resource :linear, controller: 'linear', only: [] do
               collection do
                 delete :destroy

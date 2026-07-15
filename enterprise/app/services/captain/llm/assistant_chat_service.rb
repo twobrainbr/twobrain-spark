@@ -31,11 +31,24 @@ class Captain::Llm::AssistantChatService < Llm::BaseAiService
 
   def build_tools
     tools = [Captain::Tools::SearchDocumentationService.new(@assistant, user: nil)]
+    tools.concat(nerk_tools) if nerk_enabled?
     return tools unless custom_tools_enabled?
 
     tools + @assistant.account.captain_custom_tools.enabled.map do |ct|
       ct.tool(@assistant, base_class: Captain::Tools::CustomHttpTool, conversation: @conversation)
     end
+  end
+
+  def nerk_enabled?
+    @assistant.account.hooks.enabled.exists?(app_id: 'nerk')
+  end
+
+  def nerk_tools
+    [
+      Captain::Tools::NerkOrdersService.new(@assistant, conversation: @conversation),
+      Captain::Tools::NerkTrackingService.new(@assistant, conversation: @conversation),
+      Captain::Tools::NerkProductSearchService.new(@assistant, conversation: @conversation)
+    ]
   end
 
   def system_message
