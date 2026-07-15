@@ -4,6 +4,8 @@ import { useFunctionGetter } from 'dashboard/composables/store';
 import { useI18n } from 'vue-i18n';
 import NerkAPI from 'dashboard/api/integrations/nerk';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import Button from 'dashboard/components-next/button/Button.vue';
 
 const props = defineProps({
   contactId: {
@@ -14,10 +16,10 @@ const props = defineProps({
 const { t } = useI18n();
 
 const contact = useFunctionGetter('contacts/getContact', props.contactId);
-const hasSearchableInfo = computed(
-  () => !!contact.value?.email || !!contact.value?.phone_number
-);
+const hasSearchableInfo = computed(() => !!contact.value?.id);
 const context = ref(null);
+const orderDialog = ref(null);
+const selectedOrder = ref(null);
 const loading = ref(false);
 const error = ref('');
 const orders = computed(() => context.value?.commerce?.orders || []);
@@ -54,6 +56,11 @@ const fetchContext = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const openOrder = order => {
+  selectedOrder.value = order;
+  orderDialog.value?.open();
 };
 
 watch(() => props.contactId, fetchContext, { immediate: true });
@@ -100,7 +107,11 @@ watch(() => props.contactId, fetchContext, { immediate: true });
         <article
           v-for="order in orders"
           :key="order.id"
-          class="flex flex-col gap-2 py-3"
+          class="flex cursor-pointer flex-col gap-2 py-3"
+          role="button"
+          tabindex="0"
+          @click="openOrder(order)"
+          @keydown.enter="openOrder(order)"
         >
           <div class="flex items-center justify-between gap-2">
             <strong class="truncate text-sm">
@@ -174,5 +185,160 @@ watch(() => props.contactId, fetchContext, { immediate: true });
         </article>
       </div>
     </div>
+
+    <Dialog
+      ref="orderDialog"
+      width="2xl"
+      :title="
+        selectedOrder
+          ? t('CONVERSATION_SIDEBAR.NERK.ORDER_NUMBER', {
+              number: selectedOrder.order_number,
+            })
+          : ''
+      "
+      :show-cancel-button="false"
+      :show-confirm-button="false"
+      overflow-y-auto
+    >
+      <div v-if="selectedOrder" class="flex max-h-[70vh] flex-col gap-5">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="rounded-lg bg-n-alpha-2 p-3">
+            <p class="text-xs text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.NERK.ORDER_STATUS') }}
+            </p>
+            <p class="mt-1 text-sm font-medium text-n-slate-12">
+              {{ selectedOrder.status }}
+            </p>
+          </div>
+          <div class="rounded-lg bg-n-alpha-2 p-3">
+            <p class="text-xs text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.NERK.ORDER_TOTAL') }}
+            </p>
+            <p class="mt-1 text-sm font-medium text-n-slate-12">
+              {{
+                formatCurrency(
+                  selectedOrder.amounts.total_cents,
+                  selectedOrder.amounts.currency
+                )
+              }}
+            </p>
+          </div>
+        </div>
+
+        <section>
+          <h4 class="mb-2 text-sm font-medium text-n-slate-12">
+            {{ t('CONVERSATION_SIDEBAR.NERK.PRODUCTS') }}
+          </h4>
+          <div class="divide-y divide-n-weak rounded-lg border border-n-weak">
+            <div
+              v-for="item in selectedOrder.items"
+              :key="`${item.sku}-${item.name}`"
+              class="flex items-start justify-between gap-3 p-3"
+            >
+              <div>
+                <p class="text-sm text-n-slate-12">{{ item.name }}</p>
+                <p class="text-xs text-n-slate-11">
+                  {{
+                    t('CONVERSATION_SIDEBAR.NERK.ITEM_DETAIL', {
+                      quantity: item.quantity,
+                      sku: item.sku || '—',
+                    })
+                  }}
+                </p>
+              </div>
+              <span class="text-sm text-n-slate-12">
+                {{
+                  formatCurrency(
+                    item.total_cents || item.unit_price_cents * item.quantity,
+                    selectedOrder.amounts.currency
+                  )
+                }}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section v-if="selectedOrder.shipping.shipments.length">
+          <h4 class="mb-2 text-sm font-medium text-n-slate-12">
+            {{ t('CONVERSATION_SIDEBAR.NERK.TRACKING') }}
+          </h4>
+          <div class="flex flex-col gap-2">
+            <div
+              v-for="shipment in selectedOrder.shipping.shipments"
+              :key="shipment.tracking_code || shipment.provider"
+              class="rounded-lg border border-n-weak p-3"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-sm font-medium text-n-slate-12">
+                  {{ shipment.service || shipment.provider }}
+                </p>
+                <span class="text-xs text-n-slate-11">
+                  {{ shipment.status }}
+                </span>
+              </div>
+              <p class="mt-1 font-mono text-xs text-n-slate-11">
+                {{ shipment.tracking_code || '—' }}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section v-if="selectedOrder.payments.length">
+          <h4 class="mb-2 text-sm font-medium text-n-slate-12">
+            {{ t('CONVERSATION_SIDEBAR.NERK.PAYMENTS') }}
+          </h4>
+          <div class="flex flex-col gap-2">
+            <div
+              v-for="(payment, index) in selectedOrder.payments"
+              :key="`${payment.method}-${index}`"
+              class="rounded-lg border border-n-weak p-3 text-sm text-n-slate-12"
+            >
+              <div class="flex justify-between gap-3">
+                <span>
+                  {{
+                    t('CONVERSATION_SIDEBAR.NERK.PAYMENT_DETAIL', {
+                      method: payment.method || '—',
+                      status: payment.status,
+                    })
+                  }}
+                </span>
+                <span>
+                  {{
+                    formatCurrency(
+                      payment.amount_cents,
+                      selectedOrder.amounts.currency
+                    )
+                  }}
+                </span>
+              </div>
+              <p
+                v-if="payment.refunds.length"
+                class="mt-2 text-xs text-n-ruby-11"
+              >
+                {{
+                  t('CONVERSATION_SIDEBAR.NERK.REFUNDED', {
+                    amount: formatCurrency(
+                      payment.refunds.reduce(
+                        (sum, refund) => sum + (refund.amount_cents || 0),
+                        0
+                      ),
+                      selectedOrder.amounts.currency
+                    ),
+                  })
+                }}
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+      <template #footer>
+        <Button
+          color="slate"
+          variant="faded"
+          :label="t('CONVERSATION_SIDEBAR.NERK.CLOSE')"
+          @click="orderDialog?.close()"
+        />
+      </template>
+    </Dialog>
   </div>
 </template>

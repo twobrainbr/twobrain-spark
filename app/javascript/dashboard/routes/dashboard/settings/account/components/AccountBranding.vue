@@ -11,6 +11,7 @@ import SectionLayout from './SectionLayout.vue';
 import {
   ACCOUNT_APPEARANCE_PREVIEW_EVENT,
   DEFAULT_ACCOUNT_APPEARANCE,
+  applyAccountAppearance,
 } from 'dashboard/helper/accountTheme';
 
 const HEX_COLOR_PATTERN = /^#[\dA-F]{6}$/i;
@@ -113,6 +114,8 @@ watch(
   value => {
     if (!areColorsValid.value) return;
 
+    applyAccountAppearance(value);
+
     window.dispatchEvent(
       new CustomEvent(ACCOUNT_APPEARANCE_PREVIEW_EVENT, {
         detail: { ...value },
@@ -123,6 +126,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  applyAccountAppearance(currentAccount.value?.custom_attributes || {});
   window.dispatchEvent(
     new CustomEvent(ACCOUNT_APPEARANCE_PREVIEW_EVENT, { detail: null })
   );

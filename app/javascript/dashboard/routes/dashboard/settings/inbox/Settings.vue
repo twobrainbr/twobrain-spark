@@ -94,6 +94,7 @@ export default {
       allowMessagesAfterResolved: true,
       continuityViaEmail: true,
       selectedInboxName: '',
+      channelWebsiteName: '',
       channelWebsiteUrl: '',
       webhookUrl: '',
       channelWelcomeTitle: '',
@@ -462,6 +463,7 @@ export default {
 
       this.avatarUrl = this.inbox.avatar_url;
       this.selectedInboxName = this.inbox.name;
+      this.channelWebsiteName = this.inbox.website_name || this.inbox.name;
       this.webhookUrl = this.inbox.webhook_url;
       this.greetingEnabled = this.inbox.greeting_enabled || false;
       this.greetingMessage = this.inbox.greeting_message || '';
@@ -595,6 +597,7 @@ export default {
           business_name: this.businessName || null,
           channel: {
             widget_color: this.inbox.widget_color,
+            website_name: this.channelWebsiteName?.trim(),
             website_url: this.channelWebsiteUrl,
             webhook_url: this.webhookUrl,
             welcome_title: this.channelWelcomeTitle || '',
@@ -777,6 +780,21 @@ export default {
                 "
                 @blur="v$.selectedInboxName.$touch"
               />
+            </SettingsFieldSection>
+            <SettingsFieldSection
+              v-if="isAWebWidgetInbox"
+              :label="$t('INBOX_MGMT.ADD.WEBSITE_CHANNEL.PUBLIC_NAME.LABEL')"
+            >
+              <woot-input
+                v-model="channelWebsiteName"
+                class="[&>input]:!mb-0"
+                :placeholder="
+                  $t('INBOX_MGMT.ADD.WEBSITE_CHANNEL.PUBLIC_NAME.PLACEHOLDER')
+                "
+              />
+              <p class="mt-1 text-xs text-n-slate-10">
+                {{ $t('INBOX_MGMT.ADD.WEBSITE_CHANNEL.PUBLIC_NAME.HELP') }}
+              </p>
             </SettingsFieldSection>
             <SettingsFieldSection
               v-if="isAPIInbox"
@@ -1250,7 +1268,7 @@ export default {
               <Widget
                 :welcome-heading="channelWelcomeTitle"
                 :welcome-tagline="channelWelcomeTagline"
-                :website-name="selectedInboxName"
+                :website-name="channelWebsiteName || selectedInboxName"
                 :logo="avatarUrl"
                 is-online
                 :reply-time="replyTime"

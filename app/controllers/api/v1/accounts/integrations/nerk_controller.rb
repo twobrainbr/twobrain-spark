@@ -24,7 +24,9 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
     tracking = client.tracking(
       email: contact.email,
       phone: contact.phone_number,
-      order_number: params.require(:order_number)
+      order_number: params.require(:order_number),
+      source_account_id: Current.account.id,
+      **channel_identity
     )
     return render json: { error: 'Order not found for this contact' }, status: :not_found if tracking.blank?
 
@@ -46,7 +48,22 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
   end
 
   def customer_context
-    @customer_context ||= client.customer_context(email: contact.email, phone: contact.phone_number)
+    @customer_context ||= client.customer_context(
+      email: contact.email,
+      phone: contact.phone_number,
+      source_account_id: Current.account.id,
+      **channel_identity
+    )
+  end
+
+  def channel_identity
+    contact_inbox = contact.contact_inboxes.includes(:inbox).order(updated_at: :desc).first
+    return {} if contact_inbox.blank? || contact_inbox.source_id.blank?
+
+    {
+      channel: contact_inbox.inbox.channel_type.delete_prefix('Channel::').delete_suffix('Profile').underscore,
+      external_id: contact_inbox.source_id
+    }
   end
 
   def contact
@@ -54,7 +71,7 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
   end
 
   def validate_contact
-    return if contact.present? && (contact.email.present? || contact.phone_number.present?)
+    return if contact.present? && (contact.email.present? || contact.phone_number.present? || channel_identity.present?)
 
     render json: { error: 'Contact information missing' }, status: :unprocessable_entity
   end

@@ -30,20 +30,26 @@ class Integrations::Nerk::Client
     @access_token = access_token
   end
 
-  def customer_context(email:, phone:)
-    response = get('/api/v1/context/customer', { email: email.presence, phone: phone.presence }.compact)
+  def customer_context(email:, phone:, source_account_id: nil, channel: nil, external_id: nil)
+    response = get('/api/v1/context/customer', {
+      email: email.presence,
+      phone: phone.presence,
+      source_account_id: source_account_id.presence,
+      channel: channel.presence,
+      external_id: external_id.presence
+    }.compact)
     data = response['data']
     raise ApiError, 'NERK API returned an invalid customer context' unless data.is_a?(Hash)
 
     present_context(data)
   end
 
-  def orders(email:, phone:)
-    customer_context(email: email, phone: phone).dig('commerce', 'orders') || []
+  def orders(email:, phone:, **identity)
+    customer_context(email: email, phone: phone, **identity).dig('commerce', 'orders') || []
   end
 
-  def tracking(email:, phone:, order_number:)
-    order = orders(email: email, phone: phone).find do |candidate|
+  def tracking(email:, phone:, order_number:, **identity)
+    order = orders(email: email, phone: phone, **identity).find do |candidate|
       candidate['order_number'].to_s.casecmp?(order_number.to_s) || candidate['id'].to_s == order_number.to_s
     end
     return nil if order.blank?

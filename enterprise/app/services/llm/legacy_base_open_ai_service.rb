@@ -13,7 +13,7 @@ class Llm::LegacyBaseOpenAiService
 
   def initialize
     @client = OpenAI::Client.new(
-      access_token: InstallationConfig.find_by!(name: 'CAPTAIN_OPEN_AI_API_KEY').value,
+      access_token: Llm::ApiKey.current,
       uri_base: uri_base,
       log_errors: Rails.env.development?
     )

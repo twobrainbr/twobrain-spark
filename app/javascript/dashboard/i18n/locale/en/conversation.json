@@ -434,7 +434,15 @@
       "ITEMS": "{count} item | {count} items",
       "PAYMENT_STATUS": "Payment: {status}",
       "REFUNDED": "Refunded: {amount}",
-      "SHIPMENT": "{service} · {tracking}"
+      "SHIPMENT": "{service} · {tracking}",
+      "ORDER_STATUS": "Order status",
+      "ORDER_TOTAL": "Order total",
+      "PRODUCTS": "Products",
+      "ITEM_DETAIL": "{quantity} × {sku}",
+      "TRACKING": "Shipment tracking",
+      "PAYMENTS": "Payments and refunds",
+      "PAYMENT_DETAIL": "{method} · {status}",
+      "CLOSE": "Close"
     }
   },
   "CONVERSATION_CUSTOM_ATTRIBUTES": {
