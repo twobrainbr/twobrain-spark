@@ -31,3 +31,10 @@ docker compose up -d                                  # reinicia com a nova vers
 - Segurança: UFW, fail2ban, unattended-upgrades
 
 > A imagem do GHCR é pública para o `pull` funcionar sem autenticação no servidor.
+
+## Segredos e portabilidade
+
+O código, as migrações e a definição completa da stack ficam neste repositório.
+Segredos não entram na imagem nem no Git: configure `OPENAI_API_KEY` e os demais
+valores no arquivo `/opt/chatwoot/.env` de cada ambiente, usando `.env.example`
+como contrato de configuração. Reinicie `rails` e `sidekiq` após alterar o arquivo.

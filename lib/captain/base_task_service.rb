@@ -192,7 +192,7 @@ class Captain::BaseTaskService
   end
 
   def system_api_key
-    @system_api_key ||= InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY')&.value
+    @system_api_key ||= Llm::ApiKey.current
   end
 
   def exception_tracking_account

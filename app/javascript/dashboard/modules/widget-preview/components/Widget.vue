@@ -8,7 +8,6 @@ import WidgetFooter from './WidgetFooter.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import Code from 'dashboard/components/Code.vue';
 import Switch from 'dashboard/components-next/switch/Switch.vue';
-import { useBranding } from 'shared/composables/useBranding';
 
 const props = defineProps({
   welcomeHeading: {
@@ -58,7 +57,6 @@ const props = defineProps({
 });
 
 const { t } = useI18n();
-const { replaceInstallationName } = useBranding();
 
 const isChatMode = ref(false);
 const [isWidgetVisible, toggleWidget] = useToggle(true);
@@ -180,20 +178,7 @@ const handleToggleWidget = () => {
               :config="getWidgetConfig"
             />
             <WidgetFooter :config="getWidgetConfig" />
-            <div class="py-2.5 flex justify-center">
-              <a
-                class="items-center gap-0.5 text-n-slate-11 cursor-pointer flex filter grayscale opacity-90 hover:grayscale-0 hover:opacity-100 text-xxs"
-              >
-                <span class="i-lucide-message-circle size-2.5" />
-                <span>
-                  {{
-                    replaceInstallationName(
-                      $t('INBOX_MGMT.WIDGET_BUILDER.BRANDING_TEXT')
-                    )
-                  }}
-                </span>
-              </a>
-            </div>
+            <div class="py-2.5" />
           </div>
         </div>
 

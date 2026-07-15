@@ -36,6 +36,7 @@ json.tweets_enabled resource.channel.try(:tweets_enabled) if resource.twitter?
 json.allowed_domains resource.channel.try(:allowed_domains)
 json.widget_color resource.channel.try(:widget_color)
 json.website_url resource.channel.try(:website_url)
+json.website_name resource.channel.try(:website_name)
 json.hmac_mandatory resource.channel.try(:hmac_mandatory)
 json.welcome_title resource.channel.try(:welcome_title)
 json.welcome_tagline resource.channel.try(:welcome_tagline)

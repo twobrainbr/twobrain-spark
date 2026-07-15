@@ -31,13 +31,6 @@ jobs:
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
           sudo docker image prune -af || true
 
-      - name: Remover código enterprise (edição community)
-        run: |
-          rm -rf enterprise spec/enterprise
-
-      - name: Definir edição CE no Dockerfile
-        run: echo -en '\nENV CW_EDITION="ce"' >> docker/Dockerfile
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

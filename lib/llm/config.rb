@@ -41,7 +41,7 @@ module Llm::Config
     end
 
     def system_api_key
-      InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY')&.value
+      Llm::ApiKey.current
     end
 
     def openai_endpoint

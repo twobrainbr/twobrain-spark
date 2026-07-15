@@ -81,6 +81,11 @@
         "CHANNEL_AVATAR": {
           "LABEL": "Channel Avatar"
         },
+        "PUBLIC_NAME": {
+          "LABEL": "Public website name",
+          "PLACEHOLDER": "Name shown to customers in the chat widget",
+          "HELP": "This public name is independent from the inbox name used by your support team."
+        },
         "CHANNEL_WEBHOOK_URL": {
           "LABEL": "Webhook URL",
           "PLACEHOLDER": "Please enter your Webhook URL",
