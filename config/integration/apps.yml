@@ -246,6 +246,15 @@ shopify:
   allow_multiple_hooks: false
   visible_properties: []
 
+nerk:
+  id: nerk
+  logo: nerk.svg
+  i18n_key: nerk
+  feature_flag: nerk_integration
+  hook_type: account
+  allow_multiple_hooks: false
+  visible_properties: []
+
 leadsquared:
   id: leadsquared
   feature_flag: crm_integration

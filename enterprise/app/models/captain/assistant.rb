@@ -52,6 +52,7 @@ class Captain::Assistant < ApplicationRecord
 
   def available_agent_tools
     tools = self.class.built_in_agent_tools.dup
+    tools.reject! { |tool| tool[:id].start_with?('nerk_') } unless nerk_enabled?
 
     custom_tools = account.captain_custom_tools.enabled.map(&:to_tool_metadata)
     tools.concat(custom_tools)
@@ -92,10 +93,14 @@ class Captain::Assistant < ApplicationRecord
   end
 
   def agent_tools
-    [
+    tools = [
       self.class.resolve_tool_class('faq_lookup').new(self),
       self.class.resolve_tool_class('handoff').new(self)
     ]
+    nerk_tools = %w[nerk_orders nerk_tracking nerk_product_search nerk_club nerk_promotions].filter_map do |tool_id|
+      self.class.resolve_tool_class(tool_id)&.new(self)
+    end
+    tools + nerk_tools.select(&:active?)
   end
 
   def prompt_context
@@ -111,8 +116,13 @@ class Captain::Assistant < ApplicationRecord
         }
       end,
       response_guidelines: response_guidelines || [],
-      guardrails: guardrails || []
+      guardrails: guardrails || [],
+      nerk_enabled: nerk_enabled?
     }
+  end
+
+  def nerk_enabled?
+    account.feature_enabled?('nerk_integration') && Integrations::Nerk::Client.configured?
   end
 
   def default_avatar_url

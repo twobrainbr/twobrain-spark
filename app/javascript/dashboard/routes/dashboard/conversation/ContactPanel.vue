@@ -21,6 +21,7 @@ import SharedFiles from './SharedFiles.vue';
 import Draggable from 'vuedraggable';
 import MacrosList from './Macros/List.vue';
 import ShopifyOrdersList from 'dashboard/components/widgets/conversation/ShopifyOrdersList.vue';
+import NerkOrdersList from 'dashboard/components/widgets/conversation/NerkOrdersList.vue';
 import SidebarActionsHeader from 'dashboard/components-next/SidebarActionsHeader.vue';
 import LinearIssuesList from 'dashboard/components/widgets/conversation/linear/IssuesList.vue';
 import LinearSetupCTA from 'dashboard/components/widgets/conversation/linear/LinearSetupCTA.vue';
@@ -54,6 +55,12 @@ const shopifyIntegration = useFunctionGetter(
 const isShopifyFeatureEnabled = computed(
   () => shopifyIntegration.value.enabled
 );
+
+const nerkIntegration = useFunctionGetter(
+  'integrations/getIntegration',
+  'nerk'
+);
+const isNerkEnabled = computed(() => nerkIntegration.value.enabled);
 
 const { isCloudFeatureEnabled } = useAccount();
 
@@ -128,6 +135,7 @@ onMounted(() => {
   store.dispatch('attributes/get', 0);
   // Load integrations to ensure linear integration state is available
   store.dispatch('integrations/get', 'linear');
+  store.dispatch('integrations/get', 'nerk');
 });
 </script>
 
@@ -284,6 +292,18 @@ onMounted(() => {
               "
             >
               <ShopifyOrdersList :contact-id="contactId" />
+            </AccordionItem>
+          </div>
+          <div v-else-if="element.name === 'nerk_orders' && isNerkEnabled">
+            <AccordionItem
+              :title="$t('CONVERSATION_SIDEBAR.ACCORDION.NERK_ORDERS')"
+              :is-open="isContactSidebarItemOpen('is_nerk_orders_open')"
+              compact
+              @toggle="
+                value => toggleSidebarUIState('is_nerk_orders_open', value)
+              "
+            >
+              <NerkOrdersList :contact-id="contactId" />
             </AccordionItem>
           </div>
           <div v-else-if="element.name === 'contact_notes'">

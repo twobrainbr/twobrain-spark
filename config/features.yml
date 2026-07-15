@@ -157,6 +157,9 @@
   display_name: Shopify Integration
   enabled: false
   chatwoot_internal: true
+- name: nerk_integration
+  display_name: NERK Commerce Integration
+  enabled: false
 - name: search_with_gin
   display_name: Search messages with GIN
   enabled: false

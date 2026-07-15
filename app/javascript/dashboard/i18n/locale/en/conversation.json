@@ -390,6 +390,7 @@
       "MACROS": "Macros",
       "LINEAR_ISSUES": "Linked Linear Issues",
       "SHOPIFY_ORDERS": "Shopify Orders",
+      "NERK_ORDERS": "NERK Orders",
       "SHARED_FILES": "Attachments"
     },
     "SHARED_FILES": {
@@ -422,6 +423,18 @@
         "PARTIALLY_FULFILLED": "Partially Fulfilled",
         "UNFULFILLED": "Unfulfilled"
       }
+    },
+    "NERK": {
+      "ERROR": "Error loading NERK commerce data",
+      "MISSING_IDENTITY": "Add an email or phone number to identify this contact",
+      "NO_ORDERS": "No NERK orders found for this contact",
+      "IDENTITY_MATCHED": "NERK customer matched",
+      "CLUB_POINTS": "NERK Club points",
+      "ORDER_NUMBER": "Order #{number}",
+      "ITEMS": "{count} item | {count} items",
+      "PAYMENT_STATUS": "Payment: {status}",
+      "REFUNDED": "Refunded: {amount}",
+      "SHIPMENT": "{service} · {tracking}"
     }
   },
   "CONVERSATION_CUSTOM_ATTRIBUTES": {

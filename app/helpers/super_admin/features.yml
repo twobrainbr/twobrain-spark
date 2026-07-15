@@ -150,3 +150,9 @@ shopify:
   enabled: true
   icon: 'icon-shopify'
   config_key: 'shopify'
+nerk:
+  name: 'NERK Commerce'
+  description: 'Configuration for the private NERK commerce integration'
+  enabled: true
+  icon: 'icon-shopping-bag-3-line'
+  config_key: 'nerk'

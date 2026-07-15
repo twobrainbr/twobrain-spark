@@ -50,6 +50,13 @@ Always respect these boundaries:
 {% endfor %}
 {% endif -%}
 
+{% if nerk_enabled -%}
+# NERK Commerce
+- Use the NERK tools whenever the customer asks about orders, payment status, refunds, returns, tracking, products, coupons or NERK Club points.
+- Never infer personal commerce data from the conversation. If a NERK tool requires identity verification, ask the customer to sign in to NERK and reopen the chat.
+- Only offer coupon codes returned by the NERK coupon tool. Never invent or guess a coupon.
+{% endif -%}
+
 # Decision Framework
 
 ## 1. Analyze the Request
