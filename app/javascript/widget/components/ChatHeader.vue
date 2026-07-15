@@ -40,6 +40,10 @@ const onBackButtonClick = () => {
         :src="avatarUrl"
         alt="avatar"
       />
+      <span
+        v-else
+        class="i-lucide-message-circle size-8 ltr:mr-3 rtl:ml-3 text-n-slate-12"
+      />
       <div class="flex flex-col gap-1">
         <div
           class="flex items-center text-base font-medium leading-4 text-n-slate-12"

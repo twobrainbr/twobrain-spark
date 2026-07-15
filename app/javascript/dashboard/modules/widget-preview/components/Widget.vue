@@ -9,7 +9,6 @@ import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import Code from 'dashboard/components/Code.vue';
 import Switch from 'dashboard/components-next/switch/Switch.vue';
 import { useBranding } from 'shared/composables/useBranding';
-import { useMapGetter } from 'dashboard/composables/store';
 
 const props = defineProps({
   welcomeHeading: {
@@ -60,7 +59,6 @@ const props = defineProps({
 
 const { t } = useI18n();
 const { replaceInstallationName } = useBranding();
-const globalConfig = useMapGetter('globalConfig/get');
 
 const isChatMode = ref(false);
 const [isWidgetVisible, toggleWidget] = useToggle(true);
@@ -186,10 +184,7 @@ const handleToggleWidget = () => {
               <a
                 class="items-center gap-0.5 text-n-slate-11 cursor-pointer flex filter grayscale opacity-90 hover:grayscale-0 hover:opacity-100 text-xxs"
               >
-                <img
-                  class="max-w-2.5 max-h-2.5"
-                  :src="globalConfig.logoThumbnail"
-                />
+                <span class="i-lucide-message-circle size-2.5" />
                 <span>
                   {{
                     replaceInstallationName(

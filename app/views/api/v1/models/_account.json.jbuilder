@@ -15,6 +15,12 @@ if resource.custom_attributes.present?
     json.referral_source resource.custom_attributes['referral_source'] if resource.custom_attributes['referral_source'].present?
     json.brand_info resource.custom_attributes['brand_info'] if resource.custom_attributes['brand_info'].present?
     json.brand_color resource.custom_attributes['brand_color'] if resource.custom_attributes['brand_color'].present?
+    json.accent_color resource.custom_attributes['accent_color'] if resource.custom_attributes['accent_color'].present?
+    json.background_color resource.custom_attributes['background_color'] if resource.custom_attributes['background_color'].present?
+    json.surface_color resource.custom_attributes['surface_color'] if resource.custom_attributes['surface_color'].present?
+    json.sidebar_color resource.custom_attributes['sidebar_color'] if resource.custom_attributes['sidebar_color'].present?
+    json.text_color resource.custom_attributes['text_color'] if resource.custom_attributes['text_color'].present?
+    json.font_family resource.custom_attributes['font_family'] if resource.custom_attributes['font_family'].present?
     json.onboarding_step resource.onboarding_step if resource.onboarding_step.present?
     if resource.custom_attributes['help_center_generation_id'].present?
       json.help_center_generation_id resource.custom_attributes['help_center_generation_id']
