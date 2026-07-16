@@ -49,6 +49,7 @@ class NerkAPI extends ApiClient {
       lines,
       coupon_code: couponCode,
       cart_id: cartId,
+      shipping_address_id: shipping.addressId,
       shipping_zip: shipping.zip,
       shipping_service_id: shipping.serviceId,
       shipping_discount_cents: shipping.discountCents,

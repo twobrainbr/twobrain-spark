@@ -75,6 +75,7 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
       lines: lines.map { |line| line.permit(:variant_id, :quantity, :pricing_mode).to_h },
       coupon_code: params[:coupon_code],
       cart_id: params[:cart_id],
+      shipping_address_id: params[:shipping_address_id],
       shipping_zip: params[:shipping_zip],
       shipping_service_id: params[:shipping_service_id],
       shipping_discount_cents: params[:shipping_discount_cents]
