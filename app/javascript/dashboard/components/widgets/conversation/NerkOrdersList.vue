@@ -25,6 +25,7 @@ const assistedSaleDialog = ref(null);
 const selectedOrder = ref(null);
 const activeView = ref('profile');
 const loading = ref(false);
+const loadingCarts = ref(false);
 const error = ref('');
 const identityRequired = ref(false);
 const leadName = ref(contact.value?.name || '');
@@ -33,8 +34,10 @@ const leadPhone = ref(contact.value?.phone_number || '');
 const savingLead = ref(false);
 const orderNotes = ref('');
 const savingOrder = ref(false);
+const carts = ref([]);
 const viewOptions = computed(() => [
   { id: 'profile', label: t('CONVERSATION_SIDEBAR.NERK.PROFILE_TAB') },
+  { id: 'carts', label: t('CONVERSATION_SIDEBAR.NERK.CARTS_TAB') },
   { id: 'orders', label: t('CONVERSATION_SIDEBAR.NERK.ORDERS_TAB') },
 ]);
 const orders = computed(() => context.value?.commerce?.orders || []);
@@ -42,6 +45,13 @@ const loyalty = computed(() => context.value?.commerce?.loyalty);
 const customer = computed(() => context.value?.customer);
 const summary = computed(() => context.value?.summary || {});
 const lastOrder = computed(() => orders.value[0]);
+const activeCarts = computed(() =>
+  carts.value.filter(cart => cart.status !== 'archived')
+);
+const archivedCarts = computed(() =>
+  carts.value.filter(cart => cart.status === 'archived')
+);
+const activeCart = computed(() => activeCarts.value[0]);
 const hasPendingDelivery = computed(() =>
   orders.value.some(order =>
     (order.shipping?.shipments || []).some(
@@ -55,6 +65,14 @@ const formatCurrency = (amount, currency = 'BRL') =>
     style: 'currency',
     currency,
   }).format((amount || 0) / 100);
+
+const formatUpdatedAt = value =>
+  value
+    ? new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }).format(new Date(value))
+    : '—';
 
 const refundedAmount = order =>
   (order.payments || []).reduce(
@@ -86,6 +104,24 @@ const fetchContext = async (silent = false) => {
     if (!silent) loading.value = false;
   }
 };
+
+const fetchCarts = async (silent = false) => {
+  if (!hasSearchableInfo.value) return;
+  if (!silent) loadingCarts.value = true;
+  try {
+    const response = await NerkAPI.getCarts(props.contactId);
+    carts.value = response.data.carts || [];
+  } catch (requestError) {
+    error.value =
+      requestError.response?.data?.error ||
+      t('CONVERSATION_SIDEBAR.NERK.CART_LOAD_ERROR');
+  } finally {
+    if (!silent) loadingCarts.value = false;
+  }
+};
+
+const refreshWorkspace = (silent = false) =>
+  Promise.all([fetchContext(silent), fetchCarts(silent)]);
 
 const completeLead = async () => {
   savingLead.value = true;
@@ -129,23 +165,23 @@ const saveOrder = async () => {
   }
 };
 
-const openNewOrder = () => {
-  assistedSaleDialog.value?.open();
+const openNewOrder = cartId => {
+  assistedSaleDialog.value?.open(cartId);
 };
 
 watch(
   () => props.contactId,
-  () => fetchContext(),
+  () => refreshWorkspace(),
   { immediate: true }
 );
 onMounted(() => {
-  refreshTimer = window.setInterval(() => fetchContext(true), 30000);
+  refreshTimer = window.setInterval(() => refreshWorkspace(true), 30000);
 });
 onBeforeUnmount(() => window.clearInterval(refreshTimer));
 </script>
 
 <template>
-  <div class="px-4 py-2 text-n-slate-12">
+  <div class="p-3 text-n-slate-12">
     <div v-if="loading" class="flex justify-center p-4">
       <Spinner size="32" class="text-n-brand" />
     </div>
@@ -190,7 +226,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer));
       {{ t('CONVERSATION_SIDEBAR.NERK.MISSING_IDENTITY') }}
     </p>
     <div v-else class="flex flex-col gap-3">
-      <div class="grid grid-cols-2 rounded-lg bg-n-alpha-2 p-1">
+      <div class="grid grid-cols-3 rounded-lg bg-n-alpha-2 p-1">
         <button
           v-for="view in viewOptions"
           :key="view.id"
@@ -290,6 +326,43 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer));
         </div>
 
         <button
+          v-if="activeCart"
+          type="button"
+          class="rounded-xl border border-n-brand/40 bg-n-brand/5 p-3 text-left transition hover:border-n-brand hover:bg-n-brand/10"
+          @click="openNewOrder(activeCart.id)"
+        >
+          <span class="flex items-start justify-between gap-3">
+            <span>
+              <span class="block text-xs font-medium text-n-brand">
+                {{ t('CONVERSATION_SIDEBAR.NERK.SALE_IN_PROGRESS') }}
+              </span>
+              <span class="mt-1 block text-sm font-semibold text-n-slate-12">
+                {{
+                  t('CONVERSATION_SIDEBAR.NERK.CART_SUMMARY', {
+                    items: t('CONVERSATION_SIDEBAR.NERK.CART_ITEMS_COUNT', {
+                      count: activeCart.quote?.lines?.length || 0,
+                    }),
+                    total: formatCurrency(
+                      activeCart.quote?.amounts?.estimated_total_cents
+                    ),
+                  })
+                }}
+              </span>
+            </span>
+            <span class="text-xs font-medium text-n-brand">
+              {{ t('CONVERSATION_SIDEBAR.NERK.RESUME_SALE') }}
+            </span>
+          </span>
+          <span class="mt-2 block text-[11px] text-n-slate-11">
+            {{
+              t('CONVERSATION_SIDEBAR.NERK.LAST_SYNC', {
+                date: formatUpdatedAt(activeCart.updated_at),
+              })
+            }}
+          </span>
+        </button>
+
+        <button
           v-if="lastOrder"
           type="button"
           class="flex items-center justify-between rounded-lg border border-n-weak p-3 text-left"
@@ -324,10 +397,112 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer));
             v-if="context?.links?.new_order"
             type="button"
             class="rounded-lg bg-n-brand px-3 py-2 text-center text-xs font-medium text-white"
-            @click="openNewOrder"
+            @click="openNewOrder()"
           >
             {{ t('CONVERSATION_SIDEBAR.NERK.NEW_ORDER') }}
           </button>
+        </div>
+      </div>
+
+      <div v-if="activeView === 'carts'" class="flex flex-col gap-3">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-sm font-medium text-n-slate-12">
+              {{ t('CONVERSATION_SIDEBAR.NERK.CARTS_TITLE') }}
+            </p>
+            <p class="text-xs text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.NERK.CARTS_DESCRIPTION') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            class="shrink-0 rounded-lg bg-n-brand px-3 py-2 text-xs font-medium text-white"
+            @click="openNewOrder()"
+          >
+            {{ t('CONVERSATION_SIDEBAR.NERK.NEW_SALE') }}
+          </button>
+        </div>
+
+        <div v-if="loadingCarts" class="flex justify-center p-4">
+          <Spinner size="24" class="text-n-brand" />
+        </div>
+        <button
+          v-else-if="activeCart"
+          type="button"
+          class="rounded-xl border border-n-brand/40 bg-n-brand/5 p-3 text-left"
+          @click="openNewOrder(activeCart.id)"
+        >
+          <span class="flex items-start justify-between gap-2">
+            <span>
+              <span class="block text-xs font-medium text-n-brand">
+                {{ t('CONVERSATION_SIDEBAR.NERK.ACTIVE_CART') }}
+              </span>
+              <span class="mt-1 block text-sm font-semibold text-n-slate-12">
+                {{
+                  formatCurrency(
+                    activeCart.quote?.amounts?.estimated_total_cents
+                  )
+                }}
+              </span>
+            </span>
+            <span class="text-xs font-medium text-n-brand">
+              {{ t('CONVERSATION_SIDEBAR.NERK.RESUME_SALE') }}
+            </span>
+          </span>
+          <span class="mt-2 block text-xs text-n-slate-11">
+            {{
+              t('CONVERSATION_SIDEBAR.NERK.CART_SYNC_SUMMARY', {
+                items: t('CONVERSATION_SIDEBAR.NERK.CART_ITEMS_COUNT', {
+                  count: activeCart.quote?.lines?.length || 0,
+                }),
+                date: formatUpdatedAt(activeCart.updated_at),
+              })
+            }}
+          </span>
+        </button>
+        <div
+          v-else-if="!loadingCarts"
+          class="rounded-lg border border-dashed border-n-strong p-4 text-center"
+        >
+          <p class="text-sm font-medium text-n-slate-12">
+            {{ t('CONVERSATION_SIDEBAR.NERK.NO_OPEN_CART') }}
+          </p>
+          <p class="mt-1 text-xs text-n-slate-11">
+            {{ t('CONVERSATION_SIDEBAR.NERK.NO_OPEN_CART_DESCRIPTION') }}
+          </p>
+        </div>
+
+        <div v-if="archivedCarts.length" class="border-t border-n-weak pt-3">
+          <p
+            class="mb-2 text-xs font-medium uppercase tracking-wide text-n-slate-10"
+          >
+            {{ t('CONVERSATION_SIDEBAR.NERK.CART_HISTORY') }}
+          </p>
+          <div class="flex flex-col gap-2">
+            <div
+              v-for="cart in archivedCarts.slice(0, 5)"
+              :key="cart.id"
+              class="rounded-lg border border-n-weak p-3"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-mono text-[11px] text-n-slate-11">
+                  {{ cart.id.slice(0, 8) }}
+                </span>
+                <span class="text-xs font-medium text-n-slate-12">
+                  {{
+                    formatCurrency(cart.quote?.amounts?.estimated_total_cents)
+                  }}
+                </span>
+              </div>
+              <p class="mt-1 text-[11px] text-n-slate-10">
+                {{
+                  t('CONVERSATION_SIDEBAR.NERK.ARCHIVED_AT', {
+                    date: formatUpdatedAt(cart.archived_at),
+                  })
+                }}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -611,7 +786,8 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer));
       :customer="customer"
       :loyalty="loyalty"
       :profile-url="context?.links?.customer"
-      @saved="fetchContext(true)"
+      @saved="refreshWorkspace(true)"
+      @carts-updated="fetchCarts(true)"
     />
   </div>
 </template>

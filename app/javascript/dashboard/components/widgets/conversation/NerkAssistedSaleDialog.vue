@@ -26,7 +26,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['saved']);
+const emit = defineEmits(['saved', 'cartsUpdated']);
 const { t } = useI18n();
 const dialog = ref(null);
 const flowStep = ref('carts');
@@ -46,12 +46,25 @@ const loadingCarts = ref(false);
 const saving = ref(false);
 const error = ref('');
 const copied = ref('');
+const lastSavedAt = ref(null);
 let searchTimer;
 
 const clubEligible = computed(
   () => props.loyalty?.member && props.loyalty?.membership_status === 'active'
 );
 const amounts = computed(() => quote.value?.amounts || {});
+const cartSyncLabel = computed(() => {
+  if (saving.value) return t('CONVERSATION_SIDEBAR.NERK.SAVING_CART');
+  if (!lastSavedAt.value) return t('CONVERSATION_SIDEBAR.NERK.CART_AUTOSAVE');
+
+  return t('CONVERSATION_SIDEBAR.NERK.CART_SAVED_AT', {
+    date: new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(new Date(lastSavedAt.value)),
+  });
+});
 const missingProfile = computed(() => {
   const fields = [];
   if (!props.customer?.name)
@@ -103,13 +116,16 @@ const applyCart = cart => {
   cartUrl.value = cart.cart_url || '';
   paymentUrl.value = cart.payment_url || '';
   backofficeUrl.value = cart.backoffice_url || '';
+  lastSavedAt.value = cart.updated_at || new Date().toISOString();
 };
 
 const loadCarts = async () => {
   loadingCarts.value = true;
   try {
     const response = await NerkAPI.getCarts(props.contactId);
-    carts.value = response.data.carts || [];
+    carts.value = (response.data.carts || []).filter(
+      cart => cart.status !== 'archived'
+    );
   } catch (requestError) {
     error.value =
       requestError.response?.data?.error ||
@@ -170,6 +186,7 @@ const saveCart = async () => {
     applyCart(response.data.assisted_order);
     await loadCarts();
     emit('saved');
+    emit('cartsUpdated');
   } catch (requestError) {
     error.value =
       requestError.response?.data?.error ||
@@ -236,6 +253,9 @@ const resetCart = () => {
   paymentUrl.value = '';
   backofficeUrl.value = '';
   couponCode.value = '';
+  query.value = '';
+  products.value = [];
+  lastSavedAt.value = null;
   error.value = '';
 };
 
@@ -255,6 +275,7 @@ const startNewCart = async () => {
     flowStep.value = 'pdv';
     await loadPromotions();
     emit('saved');
+    emit('cartsUpdated');
   } catch (requestError) {
     error.value =
       requestError.response?.data?.error ||
@@ -272,11 +293,13 @@ const copyLink = async (type, value) => {
   }, 1800);
 };
 
-const open = async () => {
+const open = async cartId => {
   resetCart();
   flowStep.value = 'carts';
   dialog.value?.open();
   await loadCarts();
+  const cart = carts.value.find(candidate => candidate.id === cartId);
+  if (cart) await selectCart(cart);
 };
 
 onBeforeUnmount(() => window.clearTimeout(searchTimer));
@@ -290,6 +313,7 @@ defineExpose({ open });
     :title="t('CONVERSATION_SIDEBAR.NERK.ASSISTED_SALE_TITLE')"
     :show-cancel-button="false"
     :show-confirm-button="false"
+    prevent-close
     overflow-y-auto
   >
     <div class="flex max-h-[78vh] flex-col gap-4">
@@ -610,7 +634,7 @@ defineExpose({ open });
               <Spinner v-if="saving" size="18" class="text-n-brand" />
             </div>
             <p class="mt-1 text-xs text-n-slate-11">
-              {{ t('CONVERSATION_SIDEBAR.NERK.CART_AUTOSAVE') }}
+              {{ cartSyncLabel }}
             </p>
           </div>
 
@@ -807,12 +831,18 @@ defineExpose({ open });
       </div>
     </div>
     <template #footer>
-      <Button
-        color="slate"
-        variant="faded"
-        :label="t('CONVERSATION_SIDEBAR.NERK.CLOSE')"
-        @click="dialog?.close()"
-      />
+      <div class="flex w-full items-center justify-between gap-3">
+        <p class="text-xs text-n-slate-11">
+          {{ t('CONVERSATION_SIDEBAR.NERK.EXPLICIT_CLOSE_HELP') }}
+        </p>
+        <Button
+          color="slate"
+          variant="faded"
+          :disabled="saving"
+          :label="t('CONVERSATION_SIDEBAR.NERK.CLOSE')"
+          @click="dialog?.close()"
+        />
+      </div>
     </template>
   </Dialog>
 </template>

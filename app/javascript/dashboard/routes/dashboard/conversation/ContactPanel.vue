@@ -146,6 +146,29 @@ onMounted(() => {
       @close="closeContactPanel"
     />
     <ContactInfo :contact="contact" :channel-type="channelType" />
+    <section
+      v-if="isNerkEnabled"
+      class="mx-2 mt-3 overflow-hidden rounded-xl border border-n-strong bg-n-solid-1 shadow-sm"
+    >
+      <div
+        class="flex items-center justify-between border-b border-n-weak bg-n-alpha-2 px-4 py-3"
+      >
+        <div>
+          <p class="text-sm font-semibold text-n-slate-12">
+            {{ $t('CONVERSATION_SIDEBAR.NERK.WORKSPACE_TITLE') }}
+          </p>
+          <p class="text-xs text-n-slate-11">
+            {{ $t('CONVERSATION_SIDEBAR.NERK.WORKSPACE_SUBTITLE') }}
+          </p>
+        </div>
+        <span
+          class="rounded-full bg-n-teal-3 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-n-teal-11"
+        >
+          {{ $t('CONVERSATION_SIDEBAR.NERK.SYNCED') }}
+        </span>
+      </div>
+      <NerkOrdersList :contact-id="contactId" />
+    </section>
     <div class="px-2 pb-8 list-group">
       <Draggable
         :list="conversationSidebarItems"
@@ -292,18 +315,6 @@ onMounted(() => {
               "
             >
               <ShopifyOrdersList :contact-id="contactId" />
-            </AccordionItem>
-          </div>
-          <div v-else-if="element.name === 'nerk_orders' && isNerkEnabled">
-            <AccordionItem
-              :title="$t('CONVERSATION_SIDEBAR.ACCORDION.NERK_ORDERS')"
-              :is-open="isContactSidebarItemOpen('is_nerk_orders_open')"
-              compact
-              @toggle="
-                value => toggleSidebarUIState('is_nerk_orders_open', value)
-              "
-            >
-              <NerkOrdersList :contact-id="contactId" />
             </AccordionItem>
           </div>
           <div v-else-if="element.name === 'contact_notes'">
