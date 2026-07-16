@@ -146,7 +146,11 @@ defineExpose({ open, close });
         <form
           ref="dialogContentRef"
           class="flex flex-col w-full gap-6 p-6 overflow-visible text-start align-middle transition-all duration-300 ease-in-out transform bg-n-alpha-3 backdrop-blur-[100px] shadow-xl"
-          :class="width === 'panel' ? 'h-full rounded-xl' : 'h-auto rounded-xl'"
+          :class="
+            width === 'panel'
+              ? 'h-full rounded-xl !overflow-hidden'
+              : 'h-auto rounded-xl'
+          "
           @submit.prevent="confirm"
           @click.stop
         >
