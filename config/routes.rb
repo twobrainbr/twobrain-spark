@@ -373,6 +373,8 @@ Rails.application.routes.draw do
                 get :orders
                 get :products
                 get :tracking
+                post :assisted_order
+                patch :update_order
               end
             end
             resource :linear, controller: 'linear', only: [] do

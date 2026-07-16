@@ -75,7 +75,42 @@ class Integrations::Nerk::Client
     Array(data['coupons']).filter_map { |coupon| present_available_coupon(coupon) }
   end
 
+  def create_assisted_order(customer_id:, lines:, coupon_code: nil)
+    request(
+      :post,
+      "/api/v1/customers/#{CGI.escape(customer_id)}/assisted-order",
+      { lines: lines, coupon_code: coupon_code.presence }
+    )['data']
+  end
+
+  def update_order(order_id:, notes:)
+    request(:patch, "/api/v1/orders/#{CGI.escape(order_id)}", { notes: notes })['data']
+  end
+
   private
+
+  def request(method, path, payload)
+    response_body = +''
+    SafeFetch.fetch(
+      "#{@base_url}#{path}",
+      method: method,
+      body: payload.to_json,
+      headers: {
+        'Accept' => 'application/json',
+        'Content-Type' => 'application/json',
+        'Authorization' => "Bearer #{@access_token}"
+      },
+      max_bytes: MAX_RESPONSE_SIZE,
+      validate_content_type: false
+    ) { |result| response_body = result.tempfile.read }
+    JSON.parse(response_body)
+  rescue JSON::ParserError
+    raise ApiError, 'A API da NERK retornou uma resposta inválida.'
+  rescue SafeFetch::HttpError => e
+    raise ApiError, "Falha na API da NERK: #{e.message}"
+  rescue SafeFetch::Error => e
+    raise ApiError, "Falha na comunicação com a NERK: #{e.message}"
+  end
 
   def get(path, query = {})
     query_string = URI.encode_www_form(query)
@@ -123,7 +158,7 @@ class Integrations::Nerk::Client
     {
       'identity_match' => data['identity_match'],
       'customer' => customer&.slice(
-        'id', 'name', 'company_name', 'trade_name', 'city', 'bio',
+        'id', 'name', 'email', 'phone', 'person_type', 'document', 'company_name', 'trade_name', 'city', 'bio',
         'country_code', 'social_profiles', 'lead_score', 'lifetime_value_cents'
       ),
       'commerce' => {
@@ -171,7 +206,9 @@ class Integrations::Nerk::Client
         'shipments' => Array(shipping['shipments'] || order['shipments']).map { |shipment| present_shipment(shipment) }
       },
       'created_at' => order['created_at'] || order['createdAt'],
-      'updated_at' => order['updated_at'] || order['updatedAt']
+      'updated_at' => order['updated_at'] || order['updatedAt'],
+      'notes' => order['notes'],
+      'backoffice_url' => "#{@base_url}/fluxos/#{order['id']}"
     }
   end
 
