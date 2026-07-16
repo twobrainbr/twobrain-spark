@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseController
   before_action :ensure_nerk_enabled
-  before_action :validate_contact, only: [:context, :orders, :tracking]
+  before_action :validate_contact, only: [:context, :orders, :tracking, :assisted_order, :update_order]
 
   def context
     render json: { context: customer_context }
@@ -41,10 +41,38 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
+  def assisted_order
+    customer_id = customer_context.dig('customer', 'id')
+    result = client.create_assisted_order(
+      customer_id: customer_id,
+      lines: params.require(:lines).map { |line| line.permit(:variant_id, :quantity).to_h },
+      coupon_code: params[:coupon_code]
+    )
+    render json: { assisted_order: result }
+  rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
+    render json: { error: e.message }, status: :conflict
+  rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def update_order
+    order = customer_context.dig('commerce', 'orders').find { |item| item['id'].to_s == params.require(:order_id).to_s }
+    return render json: { error: 'Pedido não encontrado para este contato.' }, status: :not_found if order.blank?
+
+    render json: { order: client.update_order(order_id: order['id'], notes: params[:notes].to_s) }
+  rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
+    render json: { error: e.message }, status: :conflict
+  rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   private
 
   def ensure_nerk_enabled
-    return if Current.account.feature_enabled?('nerk_integration') && Integrations::Nerk::Client.configured?
+    if Current.account.feature_enabled?('nerk_integration') && Integrations::Nerk::Client.configured?
+      Integrations::Nerk::ContactAttributes.ensure_for(Current.account)
+      return
+    end
 
     render json: { error: 'NERK integration is not enabled' }, status: :forbidden
   end
