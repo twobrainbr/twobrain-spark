@@ -98,7 +98,8 @@ class Integrations::Nerk::Client
   rescue SafeFetch::HttpError => e
     if e.message.start_with?('409 ')
       raise IdentityVerificationRequired,
-            'This social contact is synchronized, but must be linked to a verified NERK customer before orders can be displayed.'
+            'Este contato ainda não está vinculado a um cliente NERK. ' \
+            'Adicione ao contato o mesmo e-mail ou telefone usado na NERK e atualize este painel para consultar pedidos e benefícios.'
     end
 
     raise ApiError, "NERK API request failed: #{e.message}"
