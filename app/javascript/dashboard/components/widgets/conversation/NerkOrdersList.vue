@@ -6,6 +6,7 @@ import NerkAPI from 'dashboard/api/integrations/nerk';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
+import PhoneNumberInput from 'dashboard/components-next/phonenumberinput/PhoneNumberInput.vue';
 
 const props = defineProps({
   contactId: {
@@ -230,16 +231,14 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer));
           class="rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm"
           :placeholder="t('CONVERSATION_SIDEBAR.NERK.LEAD_EMAIL')"
         />
-        <input
+        <PhoneNumberInput
           v-model="leadPhone"
-          required
-          type="tel"
-          class="rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm"
           :placeholder="t('CONVERSATION_SIDEBAR.NERK.LEAD_PHONE')"
         />
         <Button
           type="submit"
           color="blue"
+          :disabled="!leadPhone"
           :is-loading="savingLead"
           :label="t('CONVERSATION_SIDEBAR.NERK.SAVE_LEAD')"
         />
