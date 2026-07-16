@@ -4,12 +4,16 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
 
   def context
     render json: { context: customer_context }
+  rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
+    render json: { error: e.message }, status: :conflict
   rescue Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def orders
     render json: { orders: customer_context.dig('commerce', 'orders') || [] }
+  rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
+    render json: { error: e.message }, status: :conflict
   rescue Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
@@ -31,6 +35,8 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
     return render json: { error: 'Order not found for this contact' }, status: :not_found if tracking.blank?
 
     render json: { tracking: tracking }
+  rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
+    render json: { error: e.message }, status: :conflict
   rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
