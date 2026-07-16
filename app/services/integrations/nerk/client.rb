@@ -118,15 +118,23 @@ class Integrations::Nerk::Client
 
   def present_context(data)
     commerce = data['commerce'].is_a?(Hash) ? data['commerce'] : {}
+    customer = data['customer'].is_a?(Hash) ? data['customer'] : nil
     {
       'identity_match' => data['identity_match'],
-      'customer' => data['customer']&.slice('id', 'name'),
+      'customer' => customer&.slice(
+        'id', 'name', 'company_name', 'trade_name', 'city', 'bio',
+        'country_code', 'social_profiles', 'lead_score', 'lifetime_value_cents'
+      ),
       'commerce' => {
         'orders' => Array(commerce['orders']).map { |order| present_order(order) },
         'loyalty' => present_loyalty(commerce['loyalty']),
         'wallet' => commerce['wallet']&.slice('balance_cents')
       },
-      'summary' => data['summary']
+      'summary' => data['summary'],
+      'links' => customer && {
+        'customer' => "#{@base_url}/usuarios/#{customer['id']}",
+        'new_order' => "#{@base_url}/usuarios/#{customer['id']}/pdv"
+      }
     }
   end
 
