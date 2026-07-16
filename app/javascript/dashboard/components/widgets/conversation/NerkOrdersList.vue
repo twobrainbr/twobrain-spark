@@ -20,10 +20,25 @@ const hasSearchableInfo = computed(() => !!contact.value?.id);
 const context = ref(null);
 const orderDialog = ref(null);
 const selectedOrder = ref(null);
+const activeView = ref('profile');
 const loading = ref(false);
 const error = ref('');
+const viewOptions = computed(() => [
+  { id: 'profile', label: t('CONVERSATION_SIDEBAR.NERK.PROFILE_TAB') },
+  { id: 'orders', label: t('CONVERSATION_SIDEBAR.NERK.ORDERS_TAB') },
+]);
 const orders = computed(() => context.value?.commerce?.orders || []);
 const loyalty = computed(() => context.value?.commerce?.loyalty);
+const customer = computed(() => context.value?.customer);
+const summary = computed(() => context.value?.summary || {});
+const lastOrder = computed(() => orders.value[0]);
+const hasPendingDelivery = computed(() =>
+  orders.value.some(order =>
+    (order.shipping?.shipments || []).some(
+      shipment => !['delivered', 'cancelled'].includes(shipment.status)
+    )
+  )
+);
 
 const formatCurrency = (amount, currency = 'BRL') =>
   new Intl.NumberFormat(undefined, {
@@ -78,32 +93,143 @@ watch(() => props.contactId, fetchContext, { immediate: true });
       {{ t('CONVERSATION_SIDEBAR.NERK.MISSING_IDENTITY') }}
     </p>
     <div v-else class="flex flex-col gap-3">
+      <div class="grid grid-cols-2 rounded-lg bg-n-alpha-2 p-1">
+        <button
+          v-for="view in viewOptions"
+          :key="view.id"
+          type="button"
+          class="rounded-md px-3 py-2 text-xs font-medium"
+          :class="
+            activeView === view.id
+              ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
+              : 'text-n-slate-11'
+          "
+          @click="activeView = view.id"
+        >
+          {{ view.label }}
+        </button>
+      </div>
+
       <div
-        v-if="context?.customer || loyalty"
-        class="flex items-center justify-between gap-3 rounded-lg bg-n-alpha-2 p-3"
+        v-if="activeView === 'profile' && (customer || loyalty)"
+        class="flex flex-col gap-3"
       >
-        <div>
-          <p class="text-sm font-medium text-n-slate-12">
-            {{ context?.customer?.name }}
-          </p>
-          <p class="text-xs text-n-slate-11">
-            {{ t('CONVERSATION_SIDEBAR.NERK.IDENTITY_MATCHED') }}
+        <div class="rounded-lg bg-n-alpha-2 p-3">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-medium text-n-slate-12">
+                {{ customer?.name }}
+              </p>
+              <p class="mt-1 text-xs text-n-slate-11">
+                {{ t('CONVERSATION_SIDEBAR.NERK.CUSTOMER_ID') }}
+                {{ customer?.id }}
+              </p>
+            </div>
+            <span class="rounded bg-n-teal-3 px-2 py-1 text-xs text-n-teal-11">
+              {{ t('CONVERSATION_SIDEBAR.NERK.IDENTITY_MATCHED') }}
+            </span>
+          </div>
+          <p v-if="customer?.company_name" class="mt-2 text-xs text-n-slate-11">
+            {{ customer.trade_name || customer.company_name }}
           </p>
         </div>
-        <div v-if="loyalty" class="text-right">
-          <p class="text-sm font-medium text-n-slate-12">
-            {{ loyalty.points_balance || 0 }}
-          </p>
-          <p class="text-xs text-n-slate-11">
-            {{ t('CONVERSATION_SIDEBAR.NERK.CLUB_POINTS') }}
-          </p>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div class="rounded-lg border border-n-weak p-3">
+            <p class="text-xs text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.NERK.LTV') }}
+            </p>
+            <p class="mt-1 text-sm font-medium text-n-slate-12">
+              {{ formatCurrency(customer?.lifetime_value_cents) }}
+            </p>
+          </div>
+          <div class="rounded-lg border border-n-weak p-3">
+            <p class="text-xs text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.NERK.CLUB_POINTS') }}
+            </p>
+            <p class="mt-1 text-sm font-medium text-n-slate-12">
+              {{ loyalty?.points_balance || 0 }}
+            </p>
+          </div>
+          <div class="rounded-lg border border-n-weak p-3">
+            <p class="text-xs text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.NERK.ORDER_COUNT') }}
+            </p>
+            <p class="mt-1 text-sm font-medium text-n-slate-12">
+              {{
+                summary.paid_order_count ||
+                summary.order_count_returned ||
+                orders.length
+              }}
+            </p>
+          </div>
+          <div class="rounded-lg border border-n-weak p-3">
+            <p class="text-xs text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.NERK.PENDING_DELIVERY') }}
+            </p>
+            <p class="mt-1 text-sm font-medium text-n-slate-12">
+              {{
+                hasPendingDelivery
+                  ? t('CONVERSATION_SIDEBAR.NERK.YES')
+                  : t('CONVERSATION_SIDEBAR.NERK.NO')
+              }}
+            </p>
+          </div>
+        </div>
+
+        <button
+          v-if="lastOrder"
+          type="button"
+          class="flex items-center justify-between rounded-lg border border-n-weak p-3 text-left"
+          @click="openOrder(lastOrder)"
+        >
+          <span>
+            <span class="block text-xs text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.NERK.LAST_ORDER') }}
+            </span>
+            <span class="mt-1 block text-sm font-medium text-n-slate-12">
+              {{
+                t('CONVERSATION_SIDEBAR.NERK.ORDER_NUMBER', {
+                  number: lastOrder.order_number,
+                })
+              }}
+            </span>
+          </span>
+          <span class="text-xs text-n-slate-11">{{ lastOrder.status }}</span>
+        </button>
+
+        <div class="grid grid-cols-2 gap-2">
+          <a
+            v-if="context?.links?.customer"
+            :href="context.links.customer"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12"
+          >
+            {{ t('CONVERSATION_SIDEBAR.NERK.OPEN_PROFILE') }}
+          </a>
+          <a
+            v-if="context?.links?.new_order"
+            :href="context.links.new_order"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="rounded-lg bg-n-brand px-3 py-2 text-center text-xs font-medium text-white"
+          >
+            {{ t('CONVERSATION_SIDEBAR.NERK.NEW_ORDER') }}
+          </a>
         </div>
       </div>
 
-      <p v-if="!orders.length" class="text-center text-n-slate-11">
+      <p
+        v-if="activeView === 'orders' && !orders.length"
+        class="text-center text-n-slate-11"
+      >
         {{ t('CONVERSATION_SIDEBAR.NERK.NO_ORDERS') }}
       </p>
-      <div v-else class="flex flex-col divide-y divide-n-weak">
+      <div
+        v-else-if="activeView === 'orders'"
+        class="flex flex-col divide-y divide-n-weak"
+      >
         <article
           v-for="order in orders"
           :key="order.id"

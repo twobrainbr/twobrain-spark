@@ -24,7 +24,10 @@ export default {
       return this.channelConfig.enabledFeatures.includes('end_conversation');
     },
     preChatFormEnabled() {
-      return window.chatwootWebChannel.preChatFormEnabled;
+      const currentUser = this.$store.getters['contacts/getCurrentUser'];
+      return (
+        window.chatwootWebChannel.preChatFormEnabled && !currentUser?.identifier
+      );
     },
     preChatFormOptions() {
       let preChatMessage = '';
