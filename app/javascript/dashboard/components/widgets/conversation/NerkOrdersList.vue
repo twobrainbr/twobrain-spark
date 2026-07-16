@@ -42,6 +42,7 @@ const viewOptions = computed(() => [
 ]);
 const orders = computed(() => context.value?.commerce?.orders || []);
 const loyalty = computed(() => context.value?.commerce?.loyalty);
+const wallet = computed(() => context.value?.commerce?.wallet);
 const customer = computed(() => context.value?.customer);
 const summary = computed(() => context.value?.summary || {});
 const lastOrder = computed(() => orders.value[0]);
@@ -795,6 +796,7 @@ onBeforeUnmount(() => {
       :contact-id="contactId"
       :customer="customer"
       :loyalty="loyalty"
+      :wallet="wallet"
       :profile-url="context?.links?.customer"
       @saved="refreshWorkspace(true)"
       @carts-updated="fetchCarts(true)"

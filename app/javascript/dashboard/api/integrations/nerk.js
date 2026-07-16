@@ -52,6 +52,13 @@ class NerkAPI extends ApiClient {
     });
   }
 
+  redeemLoyalty(contactId, points) {
+    return axios.post(`${this.url}/redeem_loyalty`, {
+      contact_id: contactId,
+      points,
+    });
+  }
+
   updateOrder(contactId, orderId, notes) {
     return axios.patch(`${this.url}/update_order`, {
       contact_id: contactId,

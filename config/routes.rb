@@ -377,6 +377,7 @@ Rails.application.routes.draw do
                 get :promotions
                 get :tracking
                 post :assisted_order
+                post :redeem_loyalty
                 patch :update_order
                 post :complete_lead
               end

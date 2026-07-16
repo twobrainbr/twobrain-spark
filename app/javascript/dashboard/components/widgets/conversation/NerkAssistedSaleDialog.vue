@@ -20,6 +20,10 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  wallet: {
+    type: Object,
+    default: null,
+  },
   profileUrl: {
     type: String,
     default: '',
@@ -50,10 +54,37 @@ const saving = ref(false);
 const error = ref('');
 const copied = ref('');
 const lastSavedAt = ref(null);
+const profileOpen = ref(false);
+const redeemPoints = ref(0);
+const redeeming = ref(false);
+const redeemedPointsBalance = ref(null);
+const redeemedWalletBalance = ref(null);
 let searchTimer;
 
 const clubEligible = computed(
   () => props.loyalty?.member && props.loyalty?.membership_status === 'active'
+);
+const pointsBalance = computed(
+  () => redeemedPointsBalance.value ?? props.loyalty?.points_balance ?? 0
+);
+const walletBalance = computed(
+  () => redeemedWalletBalance.value ?? props.wallet?.balance_cents ?? 0
+);
+const redemption = computed(() => props.loyalty?.redemption || {});
+const pointValueCents = computed(
+  () => redemption.value.redeem_value_cents_per_point || 0
+);
+const redeemableValue = computed(
+  () => pointsBalance.value * pointValueCents.value
+);
+const minRedeemPoints = computed(() => redemption.value.min_redeem_points || 1);
+const customerInitials = computed(() =>
+  (props.customer?.name || 'NERK')
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(part => part.charAt(0))
+    .join('')
+    .toUpperCase()
 );
 const amounts = computed(() => quote.value?.amounts || {});
 const cartSyncLabel = computed(() => {
@@ -105,15 +136,20 @@ const lineVariantAttributes = line =>
   (line.attributes || []).map(item => item.value).join(' · ') ||
   line.variantName ||
   line.variant_name;
-const customerContact = computed(() =>
-  [props.customer?.email, props.customer?.phone].filter(Boolean).join(' · ')
-);
 const registrationUrl = computed(() => {
   if (!props.profileUrl) return '';
   const separator = props.profileUrl.includes('?') ? '&' : '?';
   const section = props.customer?.addresses?.length ? 'fiscal' : 'addresses';
   return `${props.profileUrl}${separator}atendimento=1&etapa=${section}`;
 });
+const profileSectionUrl = section => {
+  if (!props.profileUrl) return '';
+  const separator = props.profileUrl.includes('?') ? '&' : '?';
+  return `${props.profileUrl}${separator}atendimento=1&etapa=${section}`;
+};
+const redeemPreview = computed(() =>
+  formatCurrency(Number(redeemPoints.value || 0) * pointValueCents.value)
+);
 const productTaxonomy = product =>
   [product.brand?.name, product.category?.name].filter(Boolean).join(' · ');
 const availableVariants = product =>
@@ -373,9 +409,34 @@ const copyLink = async (type, value) => {
   }, 1800);
 };
 
+const redeemLoyalty = async () => {
+  redeeming.value = true;
+  error.value = '';
+  try {
+    const response = await NerkAPI.redeemLoyalty(
+      props.contactId,
+      Number(redeemPoints.value)
+    );
+    const result = response.data.redemption;
+    redeemedPointsBalance.value = result.points_balance;
+    redeemedWalletBalance.value = result.wallet_balance_cents;
+    redeemPoints.value = 0;
+    emit('saved');
+  } catch (requestError) {
+    error.value =
+      requestError.response?.data?.error ||
+      t('CONVERSATION_SIDEBAR.NERK.REDEEM_ERROR');
+  } finally {
+    redeeming.value = false;
+  }
+};
+
 const open = async cartId => {
   resetCart();
   flowStep.value = 'carts';
+  profileOpen.value = false;
+  redeemedPointsBalance.value = null;
+  redeemedWalletBalance.value = null;
   dialog.value?.open();
   await loadCarts();
   const cart = carts.value.find(candidate => candidate.id === cartId);
@@ -397,63 +458,64 @@ defineExpose({ open });
     prevent-close
   >
     <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-      <div class="flex items-center gap-3 rounded-lg bg-n-alpha-2 px-3 py-2">
+      <div
+        class="relative flex items-center gap-3 rounded-xl border border-n-weak bg-n-solid-1 px-3 py-2 shadow-sm"
+      >
         <img
           src="/dashboard/images/integrations/nerk.svg"
           :alt="t('CONVERSATION_SIDEBAR.NERK.BRAND_LOGO')"
           class="h-7 w-auto rounded-md"
         />
-        <span class="h-7 w-px bg-n-weak" />
-        <img
-          v-if="customer?.avatar_url"
-          :src="customer.avatar_url"
-          :alt="customer?.name"
-          class="size-9 rounded-full object-cover"
-        />
-        <div class="min-w-0 flex-1">
-          <p class="truncate text-sm font-medium text-n-slate-12">
-            {{ customer?.name }}
-          </p>
-          <p class="truncate text-xs text-n-slate-11">{{ customerContact }}</p>
+        <span class="hidden h-7 w-px bg-n-weak sm:block" />
+        <div class="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+          <button
+            type="button"
+            class="flex shrink-0 items-center gap-2 rounded-lg bg-n-teal-3 px-3 py-1.5 text-left hover:bg-n-teal-4"
+            @click="profileOpen = true"
+          >
+            <span class="i-lucide-wallet size-4 text-n-teal-11" />
+            <span>
+              <span class="block text-[10px] text-n-teal-11">{{
+                t('CONVERSATION_SIDEBAR.NERK.WALLET_BALANCE')
+              }}</span>
+              <span class="block text-xs font-semibold text-n-teal-12">{{
+                formatCurrency(walletBalance)
+              }}</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            class="flex shrink-0 items-center gap-2 rounded-lg bg-n-amber-3 px-3 py-1.5 text-left hover:bg-n-amber-4"
+            @click="profileOpen = true"
+          >
+            <span class="i-lucide-sparkles size-4 text-n-amber-11" />
+            <span>
+              <span class="block text-[10px] text-n-amber-11">{{
+                t('CONVERSATION_SIDEBAR.NERK.CLUB_POINTS')
+              }}</span>
+              <span class="block text-xs font-semibold text-n-amber-12">
+                {{ pointsBalance }} · {{ formatCurrency(redeemableValue) }}
+              </span>
+            </span>
+          </button>
         </div>
         <div class="flex shrink-0 items-center gap-2">
-          <span
-            class="rounded-md px-2 py-1 text-xs"
-            :class="
-              clubEligible
-                ? 'bg-n-teal-3 text-n-teal-11'
-                : 'bg-n-alpha-2 text-n-slate-11'
-            "
+          <button
+            type="button"
+            class="flex items-center gap-2 rounded-lg p-1 pr-2 text-left hover:bg-n-alpha-2"
+            @click="profileOpen = !profileOpen"
           >
-            {{
-              clubEligible
-                ? t('CONVERSATION_SIDEBAR.NERK.CLUB_ACTIVE')
-                : t('CONVERSATION_SIDEBAR.NERK.CLUB_INACTIVE')
-            }}
-          </span>
-          <span
-            class="rounded-md px-2 py-1 text-xs"
-            :class="
-              missingProfile.length
-                ? 'bg-n-amber-3 text-n-amber-11'
-                : 'bg-n-teal-3 text-n-teal-11'
-            "
-          >
-            {{
-              missingProfile.length
-                ? t('CONVERSATION_SIDEBAR.NERK.MISSING_FISCAL_DATA', {
-                    count: missingProfile.length,
-                  })
-                : t('CONVERSATION_SIDEBAR.NERK.FISCAL_DATA_READY')
-            }}
-          </span>
-          <span class="text-xs font-medium text-n-slate-10">
-            {{
-              flowStep === 'carts'
-                ? t('CONVERSATION_SIDEBAR.NERK.SELECT_CART_STEP')
-                : t('CONVERSATION_SIDEBAR.NERK.BUILD_SALE_STEP')
-            }}
-          </span>
+            <span
+              class="flex size-8 items-center justify-center rounded-full bg-n-brand text-xs font-semibold text-white"
+              >{{ customerInitials }}</span
+            >
+            <span
+              class="hidden max-w-28 truncate text-xs font-medium text-n-slate-12 xl:block"
+            >
+              {{ customer?.name }}
+            </span>
+            <span class="i-lucide-chevron-down size-3 text-n-slate-10" />
+          </button>
           <button
             type="button"
             class="flex size-8 items-center justify-center rounded-lg border border-n-weak bg-n-solid-1 text-base text-n-slate-11 hover:text-n-slate-12"
@@ -462,6 +524,157 @@ defineExpose({ open });
           >
             {{ t('CONVERSATION_SIDEBAR.NERK.REMOVE_SYMBOL') }}
           </button>
+        </div>
+
+        <div
+          v-if="profileOpen"
+          class="absolute right-3 top-[calc(100%+0.5rem)] z-30 flex max-h-[calc(100vh-8rem)] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-n-weak bg-n-solid-1 shadow-xl"
+        >
+          <div class="flex items-start gap-3 border-b border-n-weak p-4">
+            <span
+              class="flex size-11 shrink-0 items-center justify-center rounded-full bg-n-brand text-sm font-semibold text-white"
+              >{{ customerInitials }}</span
+            >
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-semibold text-n-slate-12">
+                {{ customer?.name }}
+              </p>
+              <a
+                v-if="customer?.email"
+                :href="`mailto:${customer.email}`"
+                class="block truncate text-xs text-n-brand hover:underline"
+                >{{ customer.email }}</a
+              >
+              <a
+                v-if="customer?.phone"
+                :href="`tel:${customer.phone}`"
+                class="block truncate text-xs text-n-brand hover:underline"
+                >{{ customer.phone }}</a
+              >
+            </div>
+            <button
+              type="button"
+              class="i-lucide-x size-4 text-n-slate-10 hover:text-n-slate-12"
+              :aria-label="t('CONVERSATION_SIDEBAR.NERK.CLOSE')"
+              @click="profileOpen = false"
+            />
+          </div>
+
+          <div class="space-y-3 overflow-y-auto p-4">
+            <div class="grid grid-cols-2 gap-2">
+              <div class="rounded-lg bg-n-teal-3 p-3">
+                <p class="text-[10px] uppercase tracking-wide text-n-teal-11">
+                  {{ t('CONVERSATION_SIDEBAR.NERK.WALLET_BALANCE') }}
+                </p>
+                <p class="mt-1 text-base font-semibold text-n-teal-12">
+                  {{ formatCurrency(walletBalance) }}
+                </p>
+                <p class="text-[11px] text-n-teal-11">
+                  {{ t('CONVERSATION_SIDEBAR.NERK.WALLET_CHECKOUT_HELP') }}
+                </p>
+              </div>
+              <div class="rounded-lg bg-n-amber-3 p-3">
+                <p class="text-[10px] uppercase tracking-wide text-n-amber-11">
+                  {{ t('CONVERSATION_SIDEBAR.NERK.CLUB_POINTS') }}
+                </p>
+                <p class="mt-1 text-base font-semibold text-n-amber-12">
+                  {{ pointsBalance }}
+                </p>
+                <p class="text-[11px] text-n-amber-11">
+                  {{
+                    t('CONVERSATION_SIDEBAR.NERK.POINTS_WORTH', {
+                      value: formatCurrency(redeemableValue),
+                    })
+                  }}
+                </p>
+              </div>
+            </div>
+
+            <form
+              v-if="clubEligible && pointValueCents"
+              class="rounded-lg border border-n-weak p-3"
+              @submit.prevent="redeemLoyalty"
+            >
+              <div class="flex items-end gap-2">
+                <label class="min-w-0 flex-1 text-xs text-n-slate-11">
+                  {{ t('CONVERSATION_SIDEBAR.NERK.CONVERT_POINTS') }}
+                  <input
+                    v-model.number="redeemPoints"
+                    type="number"
+                    :min="minRedeemPoints"
+                    :max="pointsBalance"
+                    step="1"
+                    class="mt-1 w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm text-n-slate-12"
+                  />
+                </label>
+                <Button
+                  type="submit"
+                  size="sm"
+                  color="blue"
+                  :disabled="
+                    redeemPoints < minRedeemPoints ||
+                    redeemPoints > pointsBalance
+                  "
+                  :is-loading="redeeming"
+                  :label="
+                    t('CONVERSATION_SIDEBAR.NERK.CONVERT_VALUE', {
+                      value: redeemPreview,
+                    })
+                  "
+                />
+              </div>
+              <p class="mt-2 text-[11px] text-n-slate-10">
+                {{
+                  t('CONVERSATION_SIDEBAR.NERK.MIN_REDEEM', {
+                    count: minRedeemPoints,
+                  })
+                }}
+              </p>
+            </form>
+
+            <div class="grid grid-cols-2 gap-2">
+              <a
+                v-if="profileUrl"
+                :href="profileSectionUrl('profile')"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
+                >{{ t('CONVERSATION_SIDEBAR.NERK.EDIT_PROFILE') }}</a
+              >
+              <a
+                v-if="profileUrl"
+                :href="profileSectionUrl('contacts')"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
+                >{{ t('CONVERSATION_SIDEBAR.NERK.ADD_CONTACT') }}</a
+              >
+              <a
+                v-if="profileUrl"
+                :href="profileSectionUrl('fiscal')"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
+                >{{ t('CONVERSATION_SIDEBAR.NERK.EDIT_FISCAL') }}</a
+              >
+              <a
+                v-if="profileUrl"
+                :href="profileSectionUrl('addresses')"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
+                >{{ t('CONVERSATION_SIDEBAR.NERK.MANAGE_ADDRESSES') }}</a
+              >
+            </div>
+            <p v-if="customer?.document" class="text-xs text-n-slate-10">
+              {{
+                customer?.person_type === 'pj'
+                  ? t('CONVERSATION_SIDEBAR.NERK.COMPANY_DOCUMENT')
+                  : t('CONVERSATION_SIDEBAR.NERK.PERSON_DOCUMENT')
+              }}
+              · {{ customer.document }}
+            </p>
+          </div>
         </div>
       </div>
 
