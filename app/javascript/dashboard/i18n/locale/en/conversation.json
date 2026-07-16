@@ -465,6 +465,11 @@
       "PERSON_PJ": "Pessoa jurídica",
       "DOCUMENT_MISSING": "CPF/CNPJ não informado",
       "PHONE_MISSING": "Telefone não informado",
+      "COMPLETE_LEAD": "Complete os dados para criar ou vincular este lead na NERK",
+      "LEAD_NAME": "Nome completo",
+      "LEAD_EMAIL": "E-mail usado na NERK",
+      "LEAD_PHONE": "Telefone com DDD",
+      "SAVE_LEAD": "Criar e vincular lead",
       "CLOSE": "Fechar"
     }
   },

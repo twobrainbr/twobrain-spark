@@ -24,6 +24,11 @@ const selectedOrder = ref(null);
 const activeView = ref('profile');
 const loading = ref(false);
 const error = ref('');
+const identityRequired = ref(false);
+const leadName = ref(contact.value?.name || '');
+const leadEmail = ref(contact.value?.email || '');
+const leadPhone = ref(contact.value?.phone_number || '');
+const savingLead = ref(false);
 const orderNotes = ref('');
 const savingOrder = ref(false);
 const productQuery = ref('');
@@ -73,15 +78,35 @@ const fetchContext = async (silent = false) => {
   if (!hasSearchableInfo.value) return;
   if (!silent) loading.value = true;
   error.value = '';
+  identityRequired.value = false;
   try {
     const response = await NerkAPI.getContext(props.contactId);
     context.value = response.data.context;
   } catch (requestError) {
+    identityRequired.value = requestError.response?.status === 409;
     error.value =
       requestError.response?.data?.error ||
       t('CONVERSATION_SIDEBAR.NERK.ERROR');
   } finally {
     if (!silent) loading.value = false;
+  }
+};
+
+const completeLead = async () => {
+  savingLead.value = true;
+  try {
+    await NerkAPI.completeLead(props.contactId, {
+      name: leadName.value,
+      email: leadEmail.value,
+      phone_number: leadPhone.value,
+    });
+    window.setTimeout(() => fetchContext(), 1000);
+  } catch (requestError) {
+    error.value =
+      requestError.response?.data?.error ||
+      t('CONVERSATION_SIDEBAR.NERK.ERROR');
+  } finally {
+    savingLead.value = false;
   }
 };
 
@@ -181,9 +206,45 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer));
     <div v-if="loading" class="flex justify-center p-4">
       <Spinner size="32" class="text-n-brand" />
     </div>
-    <p v-else-if="error" class="text-center text-n-ruby-11">
-      {{ error }}
-    </p>
+    <div v-else-if="error" class="flex flex-col gap-3">
+      <p class="text-center text-sm text-n-ruby-11">{{ error }}</p>
+      <form
+        v-if="identityRequired"
+        class="flex flex-col gap-2 rounded-lg border border-n-weak p-3"
+        @submit.prevent="completeLead"
+      >
+        <p class="text-sm font-medium text-n-slate-12">
+          {{ t('CONVERSATION_SIDEBAR.NERK.COMPLETE_LEAD') }}
+        </p>
+        <input
+          v-model="leadName"
+          required
+          type="text"
+          class="rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm"
+          :placeholder="t('CONVERSATION_SIDEBAR.NERK.LEAD_NAME')"
+        />
+        <input
+          v-model="leadEmail"
+          required
+          type="email"
+          class="rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm"
+          :placeholder="t('CONVERSATION_SIDEBAR.NERK.LEAD_EMAIL')"
+        />
+        <input
+          v-model="leadPhone"
+          required
+          type="tel"
+          class="rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm"
+          :placeholder="t('CONVERSATION_SIDEBAR.NERK.LEAD_PHONE')"
+        />
+        <Button
+          type="submit"
+          color="blue"
+          :is-loading="savingLead"
+          :label="t('CONVERSATION_SIDEBAR.NERK.SAVE_LEAD')"
+        />
+      </form>
+    </div>
     <p v-else-if="!hasSearchableInfo" class="text-center text-n-slate-11">
       {{ t('CONVERSATION_SIDEBAR.NERK.MISSING_IDENTITY') }}
     </p>

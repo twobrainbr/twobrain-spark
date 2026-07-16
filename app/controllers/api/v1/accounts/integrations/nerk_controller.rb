@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseController
   before_action :ensure_nerk_enabled
-  before_action :validate_contact, only: [:context, :orders, :tracking, :assisted_order, :update_order]
+  before_action :validate_contact, only: [:context, :orders, :tracking, :assisted_order, :update_order, :complete_lead]
 
   def context
     render json: { context: customer_context }
@@ -63,6 +63,17 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
   rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
     render json: { error: e.message }, status: :conflict
   rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def complete_lead
+    contact.update!(
+      name: params.require(:name),
+      email: params.require(:email),
+      phone_number: params.require(:phone_number)
+    )
+    render json: { contact: contact.slice(:id, :name, :email, :phone_number) }
+  rescue ActionController::ParameterMissing, ActiveRecord::RecordInvalid => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
