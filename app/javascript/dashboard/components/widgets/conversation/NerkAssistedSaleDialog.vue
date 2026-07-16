@@ -519,9 +519,9 @@ const open = async cartId => {
   if (cart) await selectCart(cart);
 };
 
-const closePanel = async () => {
+const closePanel = () => {
   window.clearTimeout(saveTimer);
-  if (lines.value.length) await saveCart();
+  if (lines.value.length) saveCart();
   dialog.value?.close();
 };
 
