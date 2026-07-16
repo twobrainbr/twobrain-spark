@@ -43,12 +43,23 @@ class NerkAPI extends ApiClient {
     });
   }
 
-  createAssistedOrder(contactId, lines, couponCode, cartId) {
+  createAssistedOrder(contactId, lines, couponCode, cartId, shipping = {}) {
     return axios.post(`${this.url}/assisted_order`, {
       contact_id: contactId,
       lines,
       coupon_code: couponCode,
       cart_id: cartId,
+      shipping_zip: shipping.zip,
+      shipping_service_id: shipping.serviceId,
+      shipping_discount_cents: shipping.discountCents,
+    });
+  }
+
+  validateCustomerField(type, value, personType) {
+    return axios.post(`${this.url}/validate_customer_field`, {
+      type,
+      value,
+      person_type: personType,
     });
   }
 

@@ -1,0 +1,60 @@
+@font-face {
+  font-family: 'NERK Babcock';
+  src: url('/dashboard/fonts/nerk/Babcock-Regular.otf') format('opentype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'NERK Babcock';
+  src: url('/dashboard/fonts/nerk/Babcock-SemiBold.otf') format('opentype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 600;
+}
+
+@font-face {
+  font-family: 'NERK Babcock';
+  src: url('/dashboard/fonts/nerk/Babcock-Bold.otf') format('opentype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: 'NERK Neue Haas';
+  src: url('/dashboard/fonts/nerk/NeueHaasDisplayRoman.ttf') format('truetype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'NERK Neue Haas';
+  src: url('/dashboard/fonts/nerk/NeueHaasDisplayMedium.ttf') format('truetype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 500;
+}
+
+@font-face {
+  font-family: 'NERK Neue Haas';
+  src: url('/dashboard/fonts/nerk/NeueHaasDisplayBold.ttf') format('truetype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+}
+
+body.nerk-account,
+body.nerk-account dialog {
+  font-family: 'NERK Neue Haas', sans-serif;
+}
+
+body.nerk-account h1,
+body.nerk-account h2,
+body.nerk-account h3,
+body.nerk-account h4,
+body.nerk-account .nerk-display {
+  font-family: 'NERK Babcock', 'NERK Neue Haas', sans-serif;
+}

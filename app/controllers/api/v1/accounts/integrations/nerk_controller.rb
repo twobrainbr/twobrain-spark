@@ -71,11 +71,26 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
       customer_id: customer_id,
       lines: params.require(:lines).map { |line| line.permit(:variant_id, :quantity, :pricing_mode).to_h },
       coupon_code: params[:coupon_code],
-      cart_id: params[:cart_id]
+      cart_id: params[:cart_id],
+      shipping_zip: params[:shipping_zip],
+      shipping_service_id: params[:shipping_service_id],
+      shipping_discount_cents: params[:shipping_discount_cents]
     )
     render json: { assisted_order: result }
   rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
     render json: { error: e.message }, status: :conflict
+  rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def validate_customer_field
+    render json: {
+      validation: client.validate_customer_field(
+        type: params.require(:type),
+        value: params.require(:value),
+        person_type: params[:person_type]
+      )
+    }
   rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
