@@ -33,6 +33,9 @@ const props = defineProps({
 const emit = defineEmits(['saved', 'cartsUpdated']);
 const { t } = useI18n();
 const dialog = ref(null);
+const nerkLogoUrl = ['/dashboard', 'images', 'integrations', 'nerk.svg'].join(
+  '/'
+);
 const flowStep = ref('carts');
 const query = ref('');
 const products = ref([]);
@@ -462,7 +465,7 @@ defineExpose({ open });
         class="relative flex items-center gap-3 rounded-xl border border-n-weak bg-n-solid-1 px-3 py-2 shadow-sm"
       >
         <img
-          src="/dashboard/images/integrations/nerk.svg"
+          :src="nerkLogoUrl"
           :alt="t('CONVERSATION_SIDEBAR.NERK.BRAND_LOGO')"
           class="h-7 w-auto rounded-md"
         />
@@ -635,7 +638,7 @@ defineExpose({ open });
             <div class="grid grid-cols-2 gap-2">
               <a
                 v-if="profileUrl"
-                :href="profileSectionUrl('profile')"
+                :href="profileSectionUrl('fiscal')"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
