@@ -7,6 +7,7 @@ import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import PhoneNumberInput from 'dashboard/components-next/phonenumberinput/PhoneNumberInput.vue';
+import NerkAssistedSaleDialog from './NerkAssistedSaleDialog.vue';
 
 const props = defineProps({
   contactId: {
@@ -20,7 +21,7 @@ const contact = useFunctionGetter('contacts/getContact', props.contactId);
 const hasSearchableInfo = computed(() => !!contact.value?.id);
 const context = ref(null);
 const orderDialog = ref(null);
-const newOrderDialog = ref(null);
+const assistedSaleDialog = ref(null);
 const selectedOrder = ref(null);
 const activeView = ref('profile');
 const loading = ref(false);
@@ -32,13 +33,6 @@ const leadPhone = ref(contact.value?.phone_number || '');
 const savingLead = ref(false);
 const orderNotes = ref('');
 const savingOrder = ref(false);
-const productQuery = ref('');
-const productResults = ref([]);
-const searchingProducts = ref(false);
-const cartLines = ref([]);
-const couponCode = ref('');
-const creatingOrder = ref(false);
-const assistedOrder = ref(null);
 const viewOptions = computed(() => [
   { id: 'profile', label: t('CONVERSATION_SIDEBAR.NERK.PROFILE_TAB') },
   { id: 'orders', label: t('CONVERSATION_SIDEBAR.NERK.ORDERS_TAB') },
@@ -135,60 +129,8 @@ const saveOrder = async () => {
   }
 };
 
-const searchProducts = async () => {
-  if (productQuery.value.trim().length < 2) return;
-  searchingProducts.value = true;
-  try {
-    const response = await NerkAPI.searchProducts(productQuery.value.trim());
-    productResults.value = response.data.products || [];
-  } finally {
-    searchingProducts.value = false;
-  }
-};
-
-const addVariant = (product, variant) => {
-  const existing = cartLines.value.find(line => line.variantId === variant.id);
-  if (existing) existing.quantity += 1;
-  else {
-    cartLines.value.push({
-      variantId: variant.id,
-      name: `${product.name}${variant.name && variant.name !== 'Padrão' ? ` — ${variant.name}` : ''}`,
-      sku: variant.sku,
-      priceCents: variant.price_cents,
-      quantity: 1,
-    });
-  }
-};
-
-const createAssistedOrder = async () => {
-  if (!cartLines.value.length) return;
-  creatingOrder.value = true;
-  try {
-    const response = await NerkAPI.createAssistedOrder(
-      props.contactId,
-      cartLines.value.map(line => ({
-        variant_id: line.variantId,
-        quantity: line.quantity,
-      })),
-      couponCode.value
-    );
-    assistedOrder.value = response.data.assisted_order;
-  } catch (requestError) {
-    error.value =
-      requestError.response?.data?.error ||
-      t('CONVERSATION_SIDEBAR.NERK.ERROR');
-  } finally {
-    creatingOrder.value = false;
-  }
-};
-
 const openNewOrder = () => {
-  assistedOrder.value = null;
-  cartLines.value = [];
-  productResults.value = [];
-  productQuery.value = '';
-  couponCode.value = '';
-  newOrderDialog.value?.open();
+  assistedSaleDialog.value?.open();
 };
 
 watch(
@@ -663,129 +605,13 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer));
       </template>
     </Dialog>
 
-    <Dialog
-      ref="newOrderDialog"
-      width="2xl"
-      :title="t('CONVERSATION_SIDEBAR.NERK.NEW_ORDER')"
-      :show-cancel-button="false"
-      :show-confirm-button="false"
-      overflow-y-auto
-    >
-      <div class="flex max-h-[70vh] flex-col gap-4">
-        <div v-if="assistedOrder" class="rounded-lg bg-n-teal-3 p-4">
-          <p class="text-sm font-medium text-n-teal-11">
-            {{ t('CONVERSATION_SIDEBAR.NERK.PAYMENT_LINK_READY') }}
-          </p>
-          <a
-            :href="assistedOrder.payment_url"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="mt-2 block break-all text-sm text-n-brand underline"
-          >
-            {{ assistedOrder.payment_url }}
-          </a>
-          <a
-            :href="assistedOrder.backoffice_url"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="mt-3 inline-block rounded-lg border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
-          >
-            {{ t('CONVERSATION_SIDEBAR.NERK.OPEN_BACKOFFICE') }}
-          </a>
-        </div>
-
-        <template v-else>
-          <div class="flex gap-2">
-            <input
-              v-model="productQuery"
-              type="search"
-              class="min-w-0 flex-1 rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm"
-              :placeholder="t('CONVERSATION_SIDEBAR.NERK.PRODUCT_SEARCH')"
-              @keydown.enter="searchProducts"
-            />
-            <button
-              type="button"
-              class="rounded-lg bg-n-brand px-4 py-2 text-sm font-medium text-white"
-              :disabled="searchingProducts"
-              @click="searchProducts"
-            >
-              {{ t('CONVERSATION_SIDEBAR.NERK.SEARCH') }}
-            </button>
-          </div>
-
-          <div
-            v-if="productResults.length"
-            class="divide-y divide-n-weak rounded-lg border border-n-weak"
-          >
-            <div
-              v-for="product in productResults"
-              :key="product.id"
-              class="p-3"
-            >
-              <p class="text-sm font-medium text-n-slate-12">
-                {{ product.name }}
-              </p>
-              <button
-                v-for="variant in product.variants"
-                :key="variant.id"
-                type="button"
-                class="mt-2 flex w-full justify-between rounded-lg bg-n-alpha-2 px-3 py-2 text-left text-xs"
-                @click="addVariant(product, variant)"
-              >
-                <span>{{ `${variant.name} · ${variant.sku}` }}</span>
-                <span>{{ formatCurrency(variant.price_cents) }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div
-            v-if="cartLines.length"
-            class="divide-y divide-n-weak rounded-lg border border-n-weak"
-          >
-            <div
-              v-for="line in cartLines"
-              :key="line.variantId"
-              class="flex items-center gap-3 p-3"
-            >
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm text-n-slate-12">{{ line.name }}</p>
-                <p class="text-xs text-n-slate-11">
-                  {{ `${line.sku} · ${formatCurrency(line.priceCents)}` }}
-                </p>
-              </div>
-              <input
-                v-model.number="line.quantity"
-                type="number"
-                min="1"
-                class="w-16 rounded-lg border border-n-weak bg-n-solid-1 px-2 py-1 text-sm"
-              />
-            </div>
-          </div>
-
-          <input
-            v-model="couponCode"
-            type="text"
-            class="rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm"
-            :placeholder="t('CONVERSATION_SIDEBAR.NERK.COUPON_CODE')"
-          />
-        </template>
-      </div>
-      <template #footer>
-        <Button
-          v-if="!assistedOrder"
-          color="blue"
-          :is-loading="creatingOrder"
-          :disabled="!cartLines.length"
-          :label="t('CONVERSATION_SIDEBAR.NERK.CREATE_PAYMENT_LINK')"
-          @click="createAssistedOrder"
-        />
-        <Button
-          color="slate"
-          variant="faded"
-          :label="t('CONVERSATION_SIDEBAR.NERK.CLOSE')"
-          @click="newOrderDialog?.close()"
-        />
-      </template>
-    </Dialog>
+    <NerkAssistedSaleDialog
+      ref="assistedSaleDialog"
+      :contact-id="contactId"
+      :customer="customer"
+      :loyalty="loyalty"
+      :profile-url="context?.links?.customer"
+      @saved="fetchContext(true)"
+    />
   </div>
 </template>

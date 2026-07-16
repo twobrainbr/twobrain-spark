@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseController
   before_action :ensure_nerk_enabled
-  before_action :validate_contact, only: [:context, :orders, :tracking, :assisted_order, :update_order, :complete_lead]
+  before_action :validate_contact, only: [:context, :orders, :carts, :tracking, :assisted_order, :update_order, :complete_lead]
 
   def context
     render json: { context: customer_context }
@@ -21,6 +21,21 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
   def products
     render json: { products: client.products(query: params.require(:query)) }
   rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def carts
+    customer_id = customer_context.dig('customer', 'id')
+    render json: { carts: client.carts(customer_id: customer_id) }
+  rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
+    render json: { error: e.message }, status: :conflict
+  rescue Integrations::Nerk::Client::ApiError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def promotions
+    render json: { promotions: client.promotions }
+  rescue Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
@@ -45,8 +60,9 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
     customer_id = customer_context.dig('customer', 'id')
     result = client.create_assisted_order(
       customer_id: customer_id,
-      lines: params.require(:lines).map { |line| line.permit(:variant_id, :quantity).to_h },
-      coupon_code: params[:coupon_code]
+      lines: params.require(:lines).map { |line| line.permit(:variant_id, :quantity, :pricing_mode).to_h },
+      coupon_code: params[:coupon_code],
+      cart_id: params[:cart_id]
     )
     render json: { assisted_order: result }
   rescue Integrations::Nerk::Client::IdentityVerificationRequired => e

@@ -6,7 +6,11 @@ class SafeFetch::Fetcher
   def fetch
     with_tempfile do |tempfile|
       response = stream_response(tempfile)
-      raise SafeFetch::HttpError, "#{response.code} #{response.message}" unless response.is_a?(Net::HTTPSuccess)
+      unless response.is_a?(Net::HTTPSuccess)
+        tempfile.rewind
+        response_body = tempfile.read if options.capture_error_body?
+        raise SafeFetch::HttpError.new("#{response.code} #{response.message}", response_body: response_body)
+      end
 
       tempfile.rewind
       yield SafeFetch::Result.new(
@@ -32,7 +36,10 @@ class SafeFetch::Fetcher
     bytes_written = 0
 
     perform_request do |res|
-      next unless res.is_a?(Net::HTTPSuccess)
+      unless res.is_a?(Net::HTTPSuccess)
+        bytes_written = write_response_body(res, tempfile, bytes_written) if options.capture_error_body?
+        next
+      end
 
       validate_content_type!(res['content-type'])
       bytes_written = write_response_body(res, tempfile, bytes_written)

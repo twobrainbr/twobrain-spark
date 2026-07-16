@@ -19,6 +19,10 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: spark-production
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -61,3 +65,59 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy production VPS
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Pull, migrate and restart Spark
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -o BatchMode=yes "$VPS_USER@$VPS_HOST" /bin/bash <<'REMOTE'
+          set -Eeuo pipefail
+          cd /opt/chatwoot
+          image='ghcr.io/twobrainbr/twobrain-spark:latest'
+          previous_image="$(docker image inspect "$image" --format '{{.Id}}' 2>/dev/null || true)"
+
+          rollback() {
+            exit_code=$?
+            trap - ERR
+            docker compose ps --all || true
+            docker compose logs --no-color --tail 250 rails sidekiq || true
+            if [ -n "$previous_image" ]; then
+              docker tag "$previous_image" "$image"
+              docker compose up -d --force-recreate rails sidekiq || true
+            fi
+            exit "$exit_code"
+          }
+          trap rollback ERR
+
+          docker compose pull rails sidekiq
+          docker compose run --rm rails bundle exec rails db:chatwoot_prepare
+          docker compose up -d --remove-orphans rails sidekiq
+
+          for attempt in $(seq 1 36); do
+            curl -fsS --max-time 5 http://127.0.0.1:3000/health >/dev/null && break
+            [ "$attempt" -lt 36 ] || { echo 'Spark health check failed.'; false; }
+            sleep 5
+          done
+          trap - ERR
+          docker image prune -f --filter 'until=168h' >/dev/null
+          REMOTE
+
+      - name: Verify public origin
+        run: curl --fail --show-error --silent --retry 12 --retry-delay 5 https://spark.twobrain.com.br/health
