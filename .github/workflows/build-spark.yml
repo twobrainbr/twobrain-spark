@@ -107,7 +107,7 @@ jobs:
           trap rollback ERR
 
           docker compose pull rails sidekiq
-          docker compose run --rm rails bundle exec rails db:chatwoot_prepare
+          docker compose run --rm -T rails bundle exec rails db:chatwoot_prepare
           docker compose up -d --force-recreate --remove-orphans rails sidekiq
 
           for attempt in $(seq 1 36); do
