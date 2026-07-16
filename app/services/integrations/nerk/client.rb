@@ -94,13 +94,13 @@ class Integrations::Nerk::Client
   end
 
   def start_new_cart(customer_id:)
-    request(:post, "/api/v1/customers/#{CGI.escape(customer_id)}/assisted-carts", {})['data']
+    request(:post, "/api/v1/customers/#{CGI.escape(customer_id)}/carts", {})['data']
   end
 
   def create_assisted_order(customer_id:, lines:, coupon_code: nil, cart_id: nil)
     request(
       :post,
-      "/api/v1/customers/#{CGI.escape(customer_id)}/assisted-order",
+      "/api/v1/customers/#{CGI.escape(customer_id)}/carts",
       { lines: lines, coupon_code: coupon_code.presence, cart_id: cart_id.presence }.compact
     )['data']
   end

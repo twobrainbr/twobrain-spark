@@ -76,7 +76,7 @@ const isOpen = ref(false);
 const maxWidthClass = computed(() => {
   const classesMap = {
     panel:
-      'max-w-none w-[70vw] min-w-[48rem] h-screen max-h-screen ml-auto mr-0 rounded-none',
+      '!w-[min(72rem,68vw)] !max-w-[calc(100vw-5rem)] !min-w-0 !h-[calc(100vh-2rem)] !max-h-[calc(100vh-2rem)] ml-auto mr-4 my-4 rounded-xl',
     '5xl': 'max-w-5xl',
     '3xl': 'max-w-3xl',
     '2xl': 'max-w-2xl',
@@ -91,7 +91,7 @@ const maxWidthClass = computed(() => {
 
 const positionClass = computed(() => {
   if (props.position === 'top') return 'dialog-position-top';
-  if (props.position === 'right') return 'mt-0 mb-0';
+  if (props.position === 'right') return '';
   return '';
 });
 
@@ -146,9 +146,7 @@ defineExpose({ open, close });
         <form
           ref="dialogContentRef"
           class="flex flex-col w-full gap-6 p-6 overflow-visible text-start align-middle transition-all duration-300 ease-in-out transform bg-n-alpha-3 backdrop-blur-[100px] shadow-xl"
-          :class="
-            width === 'panel' ? 'h-screen rounded-none' : 'h-auto rounded-xl'
-          "
+          :class="width === 'panel' ? 'h-full rounded-xl' : 'h-auto rounded-xl'"
           @submit.prevent="confirm"
           @click.stop
         >
