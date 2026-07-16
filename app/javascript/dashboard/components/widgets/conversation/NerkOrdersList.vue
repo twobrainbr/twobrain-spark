@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useFunctionGetter } from 'dashboard/composables/store';
 import { useI18n } from 'vue-i18n';
 import NerkAPI from 'dashboard/api/integrations/nerk';
@@ -57,9 +57,11 @@ const refundedAmount = order =>
     0
   );
 
-const fetchContext = async () => {
+let refreshTimer;
+
+const fetchContext = async (silent = false) => {
   if (!hasSearchableInfo.value) return;
-  loading.value = true;
+  if (!silent) loading.value = true;
   error.value = '';
   try {
     const response = await NerkAPI.getContext(props.contactId);
@@ -69,7 +71,7 @@ const fetchContext = async () => {
       requestError.response?.data?.error ||
       t('CONVERSATION_SIDEBAR.NERK.ERROR');
   } finally {
-    loading.value = false;
+    if (!silent) loading.value = false;
   }
 };
 
@@ -78,7 +80,15 @@ const openOrder = order => {
   orderDialog.value?.open();
 };
 
-watch(() => props.contactId, fetchContext, { immediate: true });
+watch(
+  () => props.contactId,
+  () => fetchContext(),
+  { immediate: true }
+);
+onMounted(() => {
+  refreshTimer = window.setInterval(() => fetchContext(true), 30000);
+});
+onBeforeUnmount(() => window.clearInterval(refreshTimer));
 </script>
 
 <template>
