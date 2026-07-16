@@ -44,6 +44,13 @@ class NerkAPI extends ApiClient {
       notes,
     });
   }
+
+  completeLead(contactId, lead) {
+    return axios.post(`${this.url}/complete_lead`, {
+      contact_id: contactId,
+      ...lead,
+    });
+  }
 }
 
 export default new NerkAPI();

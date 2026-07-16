@@ -375,6 +375,7 @@ Rails.application.routes.draw do
                 get :tracking
                 post :assisted_order
                 patch :update_order
+                post :complete_lead
               end
             end
             resource :linear, controller: 'linear', only: [] do
