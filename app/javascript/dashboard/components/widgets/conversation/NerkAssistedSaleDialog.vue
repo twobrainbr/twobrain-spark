@@ -32,6 +32,7 @@ const dialog = ref(null);
 const flowStep = ref('carts');
 const query = ref('');
 const products = ref([]);
+const selectedVariantIds = ref({});
 const carts = ref([]);
 const promotions = ref([]);
 const combos = ref([]);
@@ -93,6 +94,12 @@ const variantImage = (product, variant) =>
 const variantAttributes = variant =>
   (variant.attributes || []).map(attribute => attribute.value).join(' · ') ||
   variant.name;
+const variantOptionLabel = variant =>
+  [
+    variantAttributes(variant),
+    formatCurrency(variant.offer_price_cents),
+    t('CONVERSATION_SIDEBAR.NERK.STOCK_COUNT', { count: variant.stock }),
+  ].join(' · ');
 const lineVariantAttributes = line =>
   (line.attributes || []).map(item => item.value).join(' · ') ||
   line.variantName ||
@@ -108,6 +115,15 @@ const registrationUrl = computed(() => {
 });
 const productTaxonomy = product =>
   [product.brand?.name, product.category?.name].filter(Boolean).join(' · ');
+const availableVariants = product =>
+  (product.variants || []).filter(
+    variant => variant.active && variant.stock > 0
+  );
+const selectedVariant = product => {
+  const available = availableVariants(product);
+  const selectedId = selectedVariantIds.value[product.id];
+  return available.find(variant => variant.id === selectedId) || available[0];
+};
 
 const applyCart = cart => {
   currentCartId.value = cart.id;
@@ -152,6 +168,12 @@ const searchProducts = async term => {
   try {
     const response = await NerkAPI.searchProducts(term);
     products.value = response.data.products || [];
+    products.value.forEach(product => {
+      if (!selectedVariantIds.value[product.id]) {
+        selectedVariantIds.value[product.id] =
+          availableVariants(product)[0]?.id;
+      }
+    });
   } catch (requestError) {
     error.value =
       requestError.response?.data?.error ||
@@ -257,6 +279,11 @@ const addVariant = async (product, variant) => {
   await saveCart();
 };
 
+const addSelectedVariant = product => {
+  const variant = selectedVariant(product);
+  if (variant) addVariant(product, variant);
+};
+
 const changeQuantity = async (line, delta) => {
   const next = line.quantity + delta;
   if (next < 1) {
@@ -353,18 +380,20 @@ defineExpose({ open });
     overflow-y-auto
   >
     <div class="flex min-h-0 flex-1 flex-col gap-4">
-      <div
-        class="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-n-alpha-2 p-3"
-      >
-        <div>
-          <p class="text-sm font-medium text-n-slate-12">
+      <div class="flex items-center gap-3 rounded-lg bg-n-alpha-2 px-3 py-2">
+        <img
+          v-if="customer?.avatar_url"
+          :src="customer.avatar_url"
+          :alt="customer?.name"
+          class="size-9 rounded-full object-cover"
+        />
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm font-medium text-n-slate-12">
             {{ customer?.name }}
           </p>
-          <p class="text-xs text-n-slate-11">
-            {{ customerContact }}
-          </p>
+          <p class="truncate text-xs text-n-slate-11">{{ customerContact }}</p>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex shrink-0 items-center gap-2">
           <span
             class="rounded-md px-2 py-1 text-xs"
             :class="
@@ -395,6 +424,21 @@ defineExpose({ open });
                 : t('CONVERSATION_SIDEBAR.NERK.FISCAL_DATA_READY')
             }}
           </span>
+          <span class="text-xs font-medium text-n-slate-10">
+            {{
+              flowStep === 'carts'
+                ? t('CONVERSATION_SIDEBAR.NERK.SELECT_CART_STEP')
+                : t('CONVERSATION_SIDEBAR.NERK.BUILD_SALE_STEP')
+            }}
+          </span>
+          <button
+            type="button"
+            class="flex size-8 items-center justify-center rounded-lg border border-n-weak bg-n-solid-1 text-base text-n-slate-11 hover:text-n-slate-12"
+            :aria-label="t('CONVERSATION_SIDEBAR.NERK.CLOSE_PDV')"
+            @click="dialog?.close()"
+          >
+            {{ t('CONVERSATION_SIDEBAR.NERK.REMOVE_SYMBOL') }}
+          </button>
         </div>
       </div>
 
@@ -422,39 +466,6 @@ defineExpose({ open });
       <p v-if="error" class="rounded-lg bg-n-ruby-3 p-3 text-sm text-n-ruby-11">
         {{ error }}
       </p>
-
-      <div class="grid grid-cols-2 gap-2 rounded-xl bg-n-alpha-2 p-1.5">
-        <div
-          class="rounded-lg px-3 py-2"
-          :class="
-            flowStep === 'carts'
-              ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
-              : 'text-n-slate-11'
-          "
-        >
-          <p class="text-[11px] font-medium uppercase tracking-wide">
-            {{ t('CONVERSATION_SIDEBAR.NERK.STEP_ONE') }}
-          </p>
-          <p class="text-sm font-medium">
-            {{ t('CONVERSATION_SIDEBAR.NERK.SELECT_CART_STEP') }}
-          </p>
-        </div>
-        <div
-          class="rounded-lg px-3 py-2"
-          :class="
-            flowStep === 'pdv'
-              ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
-              : 'text-n-slate-11'
-          "
-        >
-          <p class="text-[11px] font-medium uppercase tracking-wide">
-            {{ t('CONVERSATION_SIDEBAR.NERK.STEP_TWO') }}
-          </p>
-          <p class="text-sm font-medium">
-            {{ t('CONVERSATION_SIDEBAR.NERK.BUILD_SALE_STEP') }}
-          </p>
-        </div>
-      </div>
 
       <section
         v-if="flowStep === 'carts'"
@@ -616,12 +627,12 @@ defineExpose({ open });
           </div>
 
           <div
-            class="grid min-h-0 flex-1 auto-rows-max grid-cols-2 gap-3 overflow-y-auto pr-1 xl:grid-cols-3"
+            class="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto pr-1 2xl:grid-cols-2"
           >
             <article
               v-for="product in products"
               :key="product.id"
-              class="rounded-lg border border-n-weak p-3"
+              class="rounded-xl border border-n-weak bg-n-solid-1 p-3 transition hover:border-n-brand"
             >
               <div class="flex gap-3">
                 <img
@@ -638,51 +649,79 @@ defineExpose({ open });
                   </p>
                 </div>
               </div>
-              <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                <button
-                  v-for="variant in product.variants"
-                  :key="variant.id"
-                  type="button"
-                  class="flex items-center gap-2 rounded-lg border border-n-weak p-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="!variant.active || variant.stock < 1 || saving"
-                  @click="addVariant(product, variant)"
+              <div v-if="selectedVariant(product)" class="mt-3 space-y-2">
+                <label class="block text-[11px] font-medium text-n-slate-11">
+                  {{ t('CONVERSATION_SIDEBAR.NERK.SELECT_VARIANT') }}
+                </label>
+                <select
+                  v-model="selectedVariantIds[product.id]"
+                  class="w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm text-n-slate-12"
+                >
+                  <option
+                    v-for="variant in availableVariants(product)"
+                    :key="variant.id"
+                    :value="variant.id"
+                  >
+                    {{ variantOptionLabel(variant) }}
+                  </option>
+                </select>
+                <div
+                  class="flex items-center gap-3 rounded-lg bg-n-alpha-2 p-2"
                 >
                   <img
-                    :src="variantImage(product, variant)"
-                    :alt="variant.name"
-                    class="size-10 rounded-md object-cover"
+                    :src="variantImage(product, selectedVariant(product))"
+                    :alt="selectedVariant(product).name"
+                    class="size-12 rounded-md object-cover"
                   />
-                  <span class="min-w-0 flex-1">
-                    <span
-                      class="block truncate text-xs font-medium text-n-slate-12"
-                    >
-                      {{ variantAttributes(variant) }}
-                    </span>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-xs font-medium text-n-slate-12">
+                      {{ variantAttributes(selectedVariant(product)) }}
+                    </p>
                     <span class="block text-[11px] text-n-slate-11">
                       {{
                         t('CONVERSATION_SIDEBAR.NERK.VARIANT_STOCK', {
-                          sku: variant.sku,
-                          count: variant.stock,
+                          sku: selectedVariant(product).sku,
+                          count: selectedVariant(product).stock,
                         })
                       }}
                     </span>
                     <span
-                      v-if="variant.promotion"
+                      v-if="selectedVariant(product).promotion"
                       class="block text-[11px] text-n-teal-11"
                     >
-                      {{ variant.promotion.name }}
+                      {{ selectedVariant(product).promotion.name }}
                     </span>
-                  </span>
-                  <span class="text-right text-xs">
-                    <span class="block font-medium text-n-slate-12">{{
-                      formatCurrency(variant.offer_price_cents)
-                    }}</span>
-                    <span v-if="clubEligible" class="block text-n-teal-11">{{
-                      formatCurrency(variant.club_price_cents)
-                    }}</span>
-                  </span>
-                </button>
+                  </div>
+                  <div class="text-right text-xs">
+                    <p class="font-semibold text-n-slate-12">
+                      {{
+                        formatCurrency(
+                          selectedVariant(product).offer_price_cents
+                        )
+                      }}
+                    </p>
+                    <p v-if="clubEligible" class="text-n-teal-11">
+                      {{
+                        formatCurrency(
+                          selectedVariant(product).club_price_cents
+                        )
+                      }}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  :label="t('CONVERSATION_SIDEBAR.NERK.ADD_TO_CART')"
+                  color="blue"
+                  size="sm"
+                  type="button"
+                  class="w-full"
+                  :disabled="saving"
+                  @click="addSelectedVariant(product)"
+                />
               </div>
+              <p v-else class="mt-3 text-xs text-n-ruby-11">
+                {{ t('CONVERSATION_SIDEBAR.NERK.NO_VARIANTS_AVAILABLE') }}
+              </p>
             </article>
             <p
               v-if="!searching && !products.length"
