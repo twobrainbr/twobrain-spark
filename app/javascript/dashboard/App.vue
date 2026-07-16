@@ -61,13 +61,23 @@ export default {
       isRTL: 'accounts/isRTL',
       currentUser: 'getCurrentUser',
       authUIFlags: 'getAuthUIFlags',
+      getIntegration: 'integrations/getIntegration',
     }),
+    isNerkEnabled() {
+      return this.getIntegration('nerk')?.enabled || false;
+    },
     hideOnOnboardingView() {
       return !isOnOnboardingView(this.$route);
     },
   },
 
   watch: {
+    isNerkEnabled: {
+      immediate: true,
+      handler(enabled) {
+        document.body.classList.toggle('nerk-account', enabled);
+      },
+    },
     currentAccountId: {
       immediate: true,
       handler() {
@@ -86,6 +96,7 @@ export default {
     );
   },
   unmounted() {
+    document.body.classList.remove('nerk-account');
     if (this.reconnectService) {
       this.reconnectService.disconnect();
     }
@@ -104,10 +115,12 @@ export default {
       }
     },
     async initializeAccount() {
+      document.body.classList.remove('nerk-account');
       await this.$store.dispatch('accounts/get');
       this.$store.dispatch('setActiveAccount', {
         accountId: this.currentAccountId,
       });
+      this.$store.dispatch('integrations/get');
       const account = this.getAccount(this.currentAccountId);
       const { locale, latest_chatwoot_version: latestChatwootVersion } =
         account;

@@ -380,6 +380,7 @@ Rails.application.routes.draw do
                 post :redeem_loyalty
                 patch :update_order
                 post :complete_lead
+                post :validate_customer_field
               end
             end
             resource :linear, controller: 'linear', only: [] do

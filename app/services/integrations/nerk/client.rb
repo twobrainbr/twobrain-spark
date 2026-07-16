@@ -97,11 +97,27 @@ class Integrations::Nerk::Client
     request(:post, "/api/v1/customers/#{CGI.escape(customer_id)}/carts", {})['data']
   end
 
-  def create_assisted_order(customer_id:, lines:, coupon_code: nil, cart_id: nil)
+  def create_assisted_order(customer_id:, lines:, coupon_code: nil, cart_id: nil, shipping_zip: nil,
+                            shipping_service_id: nil, shipping_discount_cents: nil)
     request(
       :post,
       "/api/v1/customers/#{CGI.escape(customer_id)}/carts",
-      { lines: lines, coupon_code: coupon_code.presence, cart_id: cart_id.presence }.compact
+      {
+        lines: lines,
+        coupon_code: coupon_code.presence,
+        cart_id: cart_id.presence,
+        shipping_zip: shipping_zip.presence,
+        shipping_service_id: shipping_service_id.presence,
+        shipping_discount_cents: shipping_discount_cents
+      }.compact
+    )['data']
+  end
+
+  def validate_customer_field(type:, value:, person_type: nil)
+    request(
+      :post,
+      '/api/v1/validations',
+      { type: type, value: value, person_type: person_type }.compact
     )['data']
   end
 
@@ -198,7 +214,7 @@ class Integrations::Nerk::Client
       'identity_match' => data['identity_match'],
       'customer' => customer&.slice(
         'id', 'name', 'email', 'phone', 'person_type', 'document', 'company_name', 'trade_name', 'city', 'bio',
-        'country_code', 'social_profiles', 'lead_score', 'lifetime_value_cents', 'addresses'
+        'country_code', 'social_profiles', 'lead_score', 'lifetime_value_cents', 'addresses', 'email_verified'
       ),
       'commerce' => {
         'orders' => Array(commerce['orders']).map { |order| present_order(order) },
