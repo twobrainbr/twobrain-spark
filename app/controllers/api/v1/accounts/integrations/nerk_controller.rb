@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseController
   before_action :ensure_nerk_enabled
-  before_action :validate_contact, only: [:context, :orders, :carts, :new_cart, :tracking, :assisted_order, :update_order, :complete_lead]
+  before_action :validate_contact, only: [:context, :orders, :carts, :new_cart, :tracking, :assisted_order, :redeem_loyalty, :update_order, :complete_lead]
 
   def context
     render json: { context: customer_context }
@@ -74,6 +74,15 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
       cart_id: params[:cart_id]
     )
     render json: { assisted_order: result }
+  rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
+    render json: { error: e.message }, status: :conflict
+  rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def redeem_loyalty
+    customer_id = customer_context.dig('customer', 'id')
+    render json: { redemption: client.redeem_loyalty(customer_id: customer_id, points: params.require(:points)) }
   rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
     render json: { error: e.message }, status: :conflict
   rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e

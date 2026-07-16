@@ -109,6 +109,14 @@ class Integrations::Nerk::Client
     request(:patch, "/api/v1/orders/#{CGI.escape(order_id)}", { notes: notes })['data']
   end
 
+  def redeem_loyalty(customer_id:, points:)
+    request(
+      :post,
+      "/api/v1/customers/#{CGI.escape(customer_id)}/loyalty/redemptions",
+      { points: points.to_i }
+    )['data']
+  end
+
   private
 
   def request(method, path, payload)
@@ -195,7 +203,7 @@ class Integrations::Nerk::Client
       'commerce' => {
         'orders' => Array(commerce['orders']).map { |order| present_order(order) },
         'loyalty' => present_loyalty(commerce['loyalty']),
-        'wallet' => commerce['wallet']&.slice('balance_cents')
+        'wallet' => commerce['wallet']&.slice('balance_cents', 'recent_activity')
       },
       'summary' => data['summary'],
       'links' => customer && {
@@ -273,7 +281,7 @@ class Integrations::Nerk::Client
   def present_loyalty(loyalty)
     return nil unless loyalty.is_a?(Hash)
 
-    loyalty.slice('points_balance', 'member', 'membership_status', 'joined_at')
+    loyalty.slice('points_balance', 'member', 'membership_status', 'joined_at', 'recent_activity', 'redemption')
   end
 
   def present_product(product)
