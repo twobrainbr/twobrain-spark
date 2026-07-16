@@ -33,9 +33,12 @@ const props = defineProps({
 const emit = defineEmits(['saved', 'cartsUpdated']);
 const { t } = useI18n();
 const dialog = ref(null);
-const nerkLogoUrl = ['/dashboard', 'images', 'integrations', 'nerk.svg'].join(
-  '/'
-);
+const nerkLogoUrl = `${[
+  '/dashboard',
+  'images',
+  'integrations',
+  'nerk.svg',
+].join('/')}?v=official-20260716`;
 const flowStep = ref('carts');
 const query = ref('');
 const catalogMode = ref('all');
