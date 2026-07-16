@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
-import parsePhoneNumber from 'libphonenumber-js';
+import parsePhoneNumber, { AsYouType } from 'libphonenumber-js';
 import { useI18n } from 'vue-i18n';
 import countries from 'shared/constants/countries.js';
 import { useVuelidate } from '@vuelidate/core';
@@ -41,11 +41,27 @@ const searchQuery = ref('');
 const activeCountryCode = ref(getActiveCountryCode());
 const activeDialCode = ref(getActiveDialCode());
 const phoneNumber = ref('');
+const phoneDigits = computed(() => phoneNumber.value.replace(/\D/g, ''));
+
+const parsedPhoneNumber = value => {
+  const digits = value.replace(/\D/g, '');
+  return digits && activeDialCode.value
+    ? parsePhoneNumber(`${activeDialCode.value}${digits}`)
+    : null;
+};
+
+const formatPhoneNumber = value => {
+  const digits = value.replace(/\D/g, '');
+  return activeCountryCode.value
+    ? new AsYouType(activeCountryCode.value).input(digits)
+    : digits;
+};
 
 const rules = {
   phoneNumber: {
     minLength: minLength(2),
     numeric,
+    validPhoneNumber: value => !value || parsedPhoneNumber(value)?.isValid(),
   },
   activeDialCode: {
     required,
@@ -56,7 +72,7 @@ const rules = {
 };
 
 const v$ = useVuelidate(rules, {
-  phoneNumber,
+  phoneNumber: phoneDigits,
   activeDialCode,
 });
 
@@ -113,7 +129,11 @@ const phoneNumberError = computed(() => {
 });
 
 const emitPhoneNumber = value => {
-  const newValue = value ? `${activeDialCode.value}${value}` : '';
+  const parsedNumber = parsedPhoneNumber(value);
+  const newValue = value
+    ? parsedNumber?.number ||
+      `${activeDialCode.value}${value.replace(/\D/g, '')}`
+    : '';
   modelValue.value = newValue;
 };
 
@@ -124,9 +144,11 @@ const onSelectCountry = async ({ value, dialCode }) => {
   activeDialCode.value = dialCode;
   searchQuery.value = '';
   showDropdown.value = false;
-  if (!v$.value.$invalid && phoneNumber.value) {
+  phoneNumber.value = formatPhoneNumber(phoneNumber.value);
+  await v$.value.$touch();
+  if (!v$.value.$invalid && phoneNumber.value)
     emitPhoneNumber(phoneNumber.value);
-  }
+  else modelValue.value = '';
 };
 
 const toggleCountryDropdown = () => {
@@ -138,9 +160,16 @@ const closeCountryDropdown = () => {
 };
 
 watch(phoneNumber, async value => {
+  const formattedValue = formatPhoneNumber(value);
+  if (formattedValue !== value) {
+    phoneNumber.value = formattedValue;
+    return;
+  }
   await v$.value.$touch();
   if (!v$.value.$invalid) {
     emitPhoneNumber(value);
+  } else {
+    modelValue.value = '';
   }
 });
 
@@ -152,7 +181,7 @@ watch(
       if (number?.country) activeCountryCode.value = number.country;
       if (number?.countryCallingCode)
         activeDialCode.value = `+${number.countryCallingCode}`;
-      phoneNumber.value = newValue.replace(`+${number.countryCallingCode}`, '');
+      phoneNumber.value = number.formatNational();
     }
   },
   { immediate: true }
