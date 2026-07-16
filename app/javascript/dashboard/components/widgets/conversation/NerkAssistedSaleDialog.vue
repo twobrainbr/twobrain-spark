@@ -46,7 +46,7 @@ const categoryFilter = ref('all');
 const products = ref([]);
 const selectedVariantIds = ref({});
 const carts = ref([]);
-const promotions = ref([]);
+const coupons = ref([]);
 const combos = ref([]);
 const lines = ref([]);
 const currentCartId = ref(null);
@@ -55,6 +55,7 @@ const cartUrl = ref('');
 const paymentUrl = ref('');
 const backofficeUrl = ref('');
 const couponCode = ref('');
+const selectedAddressId = ref('');
 const shippingZip = ref('');
 const shippingServiceId = ref('');
 const shippingDiscountCents = ref(0);
@@ -68,6 +69,7 @@ const error = ref('');
 const copied = ref('');
 const lastSavedAt = ref(null);
 const profileOpen = ref(false);
+const previewLine = ref(null);
 const redeemPoints = ref(0);
 const redeeming = ref(false);
 const redeemedPointsBalance = ref(null);
@@ -103,6 +105,18 @@ const customerInitials = computed(() =>
     .toUpperCase()
 );
 const amounts = computed(() => quote.value?.amounts || {});
+const customerAddresses = computed(() =>
+  [...(props.customer?.addresses || [])].sort(
+    (first, second) =>
+      Number(second.isDefault || second.is_default) -
+      Number(first.isDefault || first.is_default)
+  )
+);
+const selectedAddress = computed(() =>
+  customerAddresses.value.find(
+    address => address.id === selectedAddressId.value
+  )
+);
 const categories = computed(() => {
   const rows = products.value
     .map(product => product.category)
@@ -151,6 +165,29 @@ const formatCurrency = amount =>
     style: 'currency',
     currency: 'BRL',
   }).format((amount || 0) / 100);
+const formatPostalCode = zip =>
+  String(zip || '')
+    .replace(/\D/g, '')
+    .replace(/^(\d{5})(\d{3})$/, '$1-$2');
+const addressLabel = address =>
+  [
+    address.recipient,
+    `${address.street}, ${address.number}`,
+    address.complement,
+    `${address.city}/${address.state}`,
+    formatPostalCode(address.zip),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+const couponBenefit = coupon =>
+  coupon.discount_type === 'percent'
+    ? t('CONVERSATION_SIDEBAR.NERK.COUPON_PERCENT', {
+        value: coupon.value,
+      })
+    : t('CONVERSATION_SIDEBAR.NERK.COUPON_FIXED', {
+        value: formatCurrency(coupon.value),
+      });
+const couponLabel = coupon => `${coupon.code} · ${couponBenefit(coupon)}`;
 
 const productImage = product =>
   product.images?.find(image => image.is_primary || image.isPrimary)?.url ||
@@ -172,6 +209,12 @@ const lineVariantAttributes = line =>
   (line.attributes || []).map(item => item.value).join(' · ') ||
   line.variantName ||
   line.variant_name;
+const lineDetail = line =>
+  [lineVariantAttributes(line), line.sku].filter(Boolean).join(' · ');
+const shippingOptionLabel = option =>
+  [option.carrier, option.service, formatCurrency(option.customerPriceCents)]
+    .filter(Boolean)
+    .join(' · ');
 const registrationUrl = computed(() => {
   if (!props.profileUrl) return '';
   const separator = props.profileUrl.includes('?') ? '&' : '?';
@@ -217,7 +260,16 @@ const applyCart = cart => {
       ? 'club'
       : 'official';
   couponCode.value = cart.quote?.coupon_code || '';
-  shippingZip.value = cart.quote?.shipping?.zip || '';
+  const quotedAddressId = cart.quote?.shipping?.address_id;
+  const quotedZip = cart.quote?.shipping?.zip?.replace(/\D/g, '');
+  const resolvedAddress =
+    customerAddresses.value.find(address => address.id === quotedAddressId) ||
+    customerAddresses.value.find(
+      address => address.zip?.replace(/\D/g, '') === quotedZip
+    ) ||
+    customerAddresses.value[0];
+  selectedAddressId.value = resolvedAddress?.id || '';
+  shippingZip.value = resolvedAddress?.zip || cart.quote?.shipping?.zip || '';
   shippingServiceId.value = cart.quote?.shipping?.selected?.serviceId || '';
   shippingDiscountCents.value =
     cart.quote?.amounts?.shipping_discount_cents || 0;
@@ -246,10 +298,10 @@ const loadCarts = async () => {
 const loadPromotions = async () => {
   try {
     const response = await NerkAPI.getPromotions();
-    promotions.value = response.data.promotions || [];
+    coupons.value = response.data.coupons || [];
     combos.value = response.data.combos || [];
   } catch {
-    promotions.value = [];
+    coupons.value = [];
     combos.value = [];
   }
 };
@@ -288,7 +340,14 @@ const persistQueuedCart = async () => {
     quantity: line.quantity,
     pricing_mode: line.pricingMode || line.pricing_mode || 'official',
   }));
-  const snapshotSignature = JSON.stringify(snapshot);
+  const snapshotState = {
+    lines: snapshot,
+    couponCode: couponCode.value,
+    addressId: selectedAddressId.value,
+    serviceId: shippingServiceId.value,
+    shippingDiscountCents: Number(shippingDiscountCents.value || 0),
+  };
+  const snapshotSignature = JSON.stringify(snapshotState);
   try {
     const response = await NerkAPI.createAssistedOrder(
       props.contactId,
@@ -296,18 +355,23 @@ const persistQueuedCart = async () => {
       couponCode.value,
       currentCartId.value,
       {
+        addressId: selectedAddressId.value,
         zip: shippingZip.value,
         serviceId: shippingServiceId.value,
         discountCents: Number(shippingDiscountCents.value || 0),
       }
     );
-    const currentSignature = JSON.stringify(
-      lines.value.map(line => ({
+    const currentSignature = JSON.stringify({
+      lines: lines.value.map(line => ({
         variant_id: line.variantId || line.variant_id,
         quantity: line.quantity,
         pricing_mode: line.pricingMode || line.pricing_mode || 'official',
-      }))
-    );
+      })),
+      couponCode: couponCode.value,
+      addressId: selectedAddressId.value,
+      serviceId: shippingServiceId.value,
+      shippingDiscountCents: Number(shippingDiscountCents.value || 0),
+    });
     if (!saveQueued && snapshotSignature === currentSignature) {
       applyCart(response.data.assisted_order);
       carts.value = [
@@ -439,6 +503,12 @@ const setCartPricingMode = async mode => {
   if (lines.value.length) scheduleCartSave();
 };
 
+const chooseAddress = () => {
+  shippingZip.value = selectedAddress.value?.zip || '';
+  shippingServiceId.value = '';
+  if (lines.value.length) scheduleCartSave();
+};
+
 const resetCart = () => {
   saveQueued = false;
   currentCartId.value = null;
@@ -448,20 +518,24 @@ const resetCart = () => {
   paymentUrl.value = '';
   backofficeUrl.value = '';
   couponCode.value = '';
-  shippingZip.value = '';
+  selectedAddressId.value = customerAddresses.value[0]?.id || '';
+  shippingZip.value = customerAddresses.value[0]?.zip || '';
   shippingServiceId.value = '';
   shippingDiscountCents.value = 0;
   query.value = '';
   products.value = [];
   lastSavedAt.value = null;
   error.value = '';
+  previewLine.value = null;
 };
 
 const selectCart = async cart => {
   applyCart(cart);
   flowStep.value = 'pdv';
   await Promise.all([
-    promotions.value.length ? Promise.resolve() : loadPromotions(),
+    coupons.value.length || combos.value.length
+      ? Promise.resolve()
+      : loadPromotions(),
     products.value.length
       ? Promise.resolve()
       : searchProducts(query.value.trim()),
@@ -1016,35 +1090,6 @@ defineExpose({ open });
             </button>
           </div>
 
-          <div v-if="promotions.length" class="space-y-2">
-            <p
-              class="text-xs font-medium uppercase tracking-wide text-n-slate-10"
-            >
-              {{ t('CONVERSATION_SIDEBAR.NERK.AVAILABLE_COUPONS') }}
-            </p>
-            <div class="flex gap-2 overflow-x-auto pb-1">
-              <button
-                v-for="promotion in promotions"
-                :key="promotion.code"
-                type="button"
-                class="shrink-0 rounded-lg border border-n-weak bg-n-alpha-2 px-3 py-2 text-left text-xs"
-                :disabled="saving"
-                @click="
-                  couponCode = promotion.code;
-                  scheduleCartSave();
-                "
-              >
-                <span class="block font-medium text-n-slate-12">{{
-                  promotion.code
-                }}</span>
-                <span class="text-n-slate-11">{{
-                  promotion.description ||
-                  t('CONVERSATION_SIDEBAR.NERK.AVAILABLE_COUPON')
-                }}</span>
-              </button>
-            </div>
-          </div>
-
           <div
             class="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto overscroll-contain pr-2 lg:grid-cols-2"
           >
@@ -1206,20 +1251,45 @@ defineExpose({ open });
         </section>
 
         <aside
-          class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-n-weak bg-n-solid-1"
+          class="relative flex min-h-0 flex-col overflow-hidden rounded-lg border border-n-weak bg-n-solid-1"
         >
-          <div class="border-b border-n-weak p-4">
+          <div
+            v-if="previewLine"
+            class="absolute inset-3 z-20 flex flex-col items-center justify-center rounded-xl bg-n-slate-12/95 p-5 text-center text-white shadow-2xl"
+          >
+            <button
+              type="button"
+              class="absolute right-3 top-3 flex size-8 items-center justify-center rounded-full bg-white/15 hover:bg-white/25"
+              :aria-label="t('CONVERSATION_SIDEBAR.NERK.CLOSE')"
+              @click="previewLine = null"
+            >
+              <span class="i-lucide-x size-4" />
+            </button>
+            <img
+              :src="previewLine.imageUrl || previewLine.image_url"
+              :alt="previewLine.productName || previewLine.product_name"
+              class="max-h-[58%] w-full rounded-lg object-contain"
+            />
+            <p class="nerk-display mt-4 text-lg font-semibold">
+              {{ previewLine.productName || previewLine.product_name }}
+            </p>
+            <p class="mt-1 text-xs text-white/70">
+              {{ lineDetail(previewLine) }}
+            </p>
+          </div>
+
+          <div class="border-b border-n-weak p-3">
             <div class="flex items-center justify-between">
-              <h4 class="nerk-display text-lg font-semibold text-n-slate-12">
+              <h4 class="nerk-display text-base font-semibold text-n-slate-12">
                 {{ t('CONVERSATION_SIDEBAR.NERK.CART_TITLE') }}
               </h4>
               <Spinner v-if="saving" size="18" class="text-n-brand" />
             </div>
-            <p class="mt-1 text-xs text-n-slate-11">
+            <p class="mt-0.5 text-[10px] text-n-slate-10">
               {{ cartSyncLabel }}
             </p>
             <div
-              class="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-n-alpha-2 p-1"
+              class="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-n-alpha-2 p-1"
             >
               <button
                 type="button"
@@ -1256,81 +1326,102 @@ defineExpose({ open });
             <div
               v-for="line in lines"
               :key="line.variantId || line.variant_id"
-              class="p-3"
+              class="px-3 py-2"
               :class="
                 lineCombo(line)
                   ? 'border-l-2 border-n-slate-12 bg-n-alpha-2'
                   : ''
               "
             >
-              <p
-                v-if="lineCombo(line)"
-                class="mb-2 text-[10px] font-medium uppercase tracking-wide text-n-slate-12"
-              >
-                {{ lineCombo(line).name }}
-              </p>
-              <div class="flex gap-2">
-                <img
-                  :src="line.imageUrl || line.image_url"
-                  :alt="line.productName || line.product_name"
-                  class="size-12 rounded-md object-cover"
-                />
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-xs font-medium text-n-slate-12">
-                    {{ line.productName || line.product_name }}
-                  </p>
-                  <p class="truncate text-[11px] text-n-slate-11">
-                    {{ lineVariantAttributes(line) }}
-                  </p>
-                  <p class="text-[11px] text-n-slate-11">{{ line.sku }}</p>
-                </div>
+              <div class="flex items-center gap-2">
                 <button
                   type="button"
-                  class="self-start text-xs text-n-ruby-11"
-                  :aria-label="t('CONVERSATION_SIDEBAR.NERK.REMOVE_ITEM')"
-                  :disabled="saving"
-                  @click="removeLine(line)"
+                  class="size-10 shrink-0 overflow-hidden rounded-md bg-n-alpha-2"
+                  :aria-label="
+                    t('CONVERSATION_SIDEBAR.NERK.EXPAND_PRODUCT_IMAGE')
+                  "
+                  @click="previewLine = line"
                 >
-                  {{ t('CONVERSATION_SIDEBAR.NERK.REMOVE_SYMBOL') }}
+                  <img
+                    :src="line.imageUrl || line.image_url"
+                    :alt="line.productName || line.product_name"
+                    class="size-full object-cover transition hover:scale-110"
+                  />
                 </button>
-              </div>
-              <div class="mt-2 flex items-center justify-between gap-2">
-                <div class="flex items-center rounded-md border border-n-weak">
-                  <button
-                    type="button"
-                    class="px-2 py-1 text-sm"
-                    :aria-label="
-                      t('CONVERSATION_SIDEBAR.NERK.DECREASE_QUANTITY')
-                    "
-                    :disabled="saving"
-                    @click="changeQuantity(line, -1)"
+                <div class="min-w-0 flex-1">
+                  <div class="flex min-w-0 items-center gap-1.5">
+                    <span
+                      v-if="lineCombo(line)"
+                      class="shrink-0 rounded bg-n-slate-12 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white"
+                    >
+                      {{ t('CONVERSATION_SIDEBAR.NERK.COMBO_BADGE') }}
+                    </span>
+                    <p class="truncate text-xs font-medium text-n-slate-12">
+                      {{ line.productName || line.product_name }}
+                    </p>
+                  </div>
+                  <p class="truncate text-[10px] text-n-slate-10">
+                    {{ lineDetail(line) }}
+                  </p>
+                  <p
+                    v-if="lineCombo(line)"
+                    class="truncate text-[10px] font-medium text-n-slate-11"
                   >
-                    {{ t('CONVERSATION_SIDEBAR.NERK.DECREASE_SYMBOL') }}
-                  </button>
-                  <span class="min-w-7 text-center text-xs">{{
-                    line.quantity
-                  }}</span>
-                  <button
-                    type="button"
-                    class="px-2 py-1 text-sm"
-                    :aria-label="
-                      t('CONVERSATION_SIDEBAR.NERK.INCREASE_QUANTITY')
-                    "
-                    :disabled="saving"
-                    @click="changeQuantity(line, 1)"
-                  >
-                    {{ t('CONVERSATION_SIDEBAR.NERK.INCREASE_SYMBOL') }}
-                  </button>
+                    {{ lineCombo(line).name }}
+                  </p>
                 </div>
-                <span
-                  class="nerk-display text-sm font-semibold text-n-slate-12"
-                  >{{
-                    formatCurrency(
-                      (line.unitPriceCents || line.unit_price_cents) *
-                        line.quantity
-                    )
-                  }}</span
-                >
+                <div class="flex shrink-0 flex-col items-end gap-1">
+                  <span
+                    class="nerk-display text-xs font-semibold text-n-slate-12"
+                    >{{
+                      formatCurrency(
+                        (line.unitPriceCents || line.unit_price_cents) *
+                          line.quantity
+                      )
+                    }}</span
+                  >
+                  <div class="flex items-center gap-1">
+                    <div
+                      class="flex items-center rounded-md border border-n-weak bg-n-solid-1"
+                    >
+                      <button
+                        type="button"
+                        class="px-1.5 py-0.5 text-xs"
+                        :aria-label="
+                          t('CONVERSATION_SIDEBAR.NERK.DECREASE_QUANTITY')
+                        "
+                        :disabled="saving"
+                        @click="changeQuantity(line, -1)"
+                      >
+                        {{ t('CONVERSATION_SIDEBAR.NERK.DECREASE_SYMBOL') }}
+                      </button>
+                      <span
+                        class="min-w-5 text-center text-[10px] font-medium"
+                        >{{ line.quantity }}</span
+                      >
+                      <button
+                        type="button"
+                        class="px-1.5 py-0.5 text-xs"
+                        :aria-label="
+                          t('CONVERSATION_SIDEBAR.NERK.INCREASE_QUANTITY')
+                        "
+                        :disabled="saving"
+                        @click="changeQuantity(line, 1)"
+                      >
+                        {{ t('CONVERSATION_SIDEBAR.NERK.INCREASE_SYMBOL') }}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      class="flex size-6 items-center justify-center rounded-md text-n-ruby-11 hover:bg-n-ruby-3"
+                      :aria-label="t('CONVERSATION_SIDEBAR.NERK.REMOVE_ITEM')"
+                      :disabled="saving"
+                      @click="removeLine(line)"
+                    >
+                      <span class="i-lucide-trash-2 size-3.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
             <p
@@ -1342,30 +1433,39 @@ defineExpose({ open });
           </div>
 
           <div
-            class="max-h-[52%] shrink-0 overflow-y-auto overscroll-contain border-t border-n-weak p-4"
+            class="max-h-[48%] shrink-0 overflow-y-auto overscroll-contain border-t border-n-weak p-3"
           >
-            <div class="mb-3 rounded-lg border border-n-weak bg-n-alpha-2 p-3">
+            <div
+              class="mb-2 rounded-lg border border-n-weak bg-n-alpha-2 p-2.5"
+            >
               <div class="flex items-center gap-2">
                 <span class="i-lucide-truck size-4 text-n-slate-12" />
                 <p class="nerk-display text-sm font-semibold text-n-slate-12">
                   {{ t('CONVERSATION_SIDEBAR.NERK.SHIPPING_CONFIGURATION') }}
                 </p>
               </div>
-              <div class="mt-2 grid grid-cols-2 gap-2">
+              <div class="mt-2 grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
                 <label
                   class="text-[10px] uppercase tracking-wide text-n-slate-10"
                 >
-                  {{ t('CONVERSATION_SIDEBAR.NERK.POSTAL_CODE') }}
-                  <input
-                    v-model="shippingZip"
-                    inputmode="numeric"
-                    maxlength="9"
+                  {{ t('CONVERSATION_SIDEBAR.NERK.DELIVERY_ADDRESS') }}
+                  <select
+                    v-model="selectedAddressId"
                     class="mt-1 w-full rounded-lg border border-n-weak bg-n-solid-1 px-2 py-1.5 text-xs"
-                    :placeholder="
-                      t('CONVERSATION_SIDEBAR.NERK.POSTAL_CODE_PLACEHOLDER')
-                    "
-                    @change="scheduleCartSave"
-                  />
+                    :disabled="!customerAddresses.length || saving"
+                    @change="chooseAddress"
+                  >
+                    <option value="">
+                      {{ t('CONVERSATION_SIDEBAR.NERK.SELECT_ADDRESS') }}
+                    </option>
+                    <option
+                      v-for="address in customerAddresses"
+                      :key="address.id"
+                      :value="address.id"
+                    >
+                      {{ addressLabel(address) }}
+                    </option>
+                  </select>
                 </label>
                 <label
                   class="text-[10px] uppercase tracking-wide text-n-slate-10"
@@ -1386,6 +1486,24 @@ defineExpose({ open });
                   />
                 </label>
               </div>
+              <div class="mt-1.5 flex items-center justify-between gap-2">
+                <p class="truncate text-[10px] text-n-slate-10">
+                  {{
+                    selectedAddress
+                      ? addressLabel(selectedAddress)
+                      : t('CONVERSATION_SIDEBAR.NERK.ADDRESS_REQUIRED')
+                  }}
+                </p>
+                <a
+                  v-if="profileUrl"
+                  :href="profileSectionUrl('addresses')"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="shrink-0 text-[10px] font-medium text-n-brand hover:underline"
+                >
+                  {{ t('CONVERSATION_SIDEBAR.NERK.ADD_NEW_ADDRESS') }}
+                </a>
+              </div>
               <select
                 v-if="quote?.shipping?.options?.length"
                 v-model="shippingServiceId"
@@ -1397,8 +1515,7 @@ defineExpose({ open });
                   :key="option.serviceId"
                   :value="option.serviceId"
                 >
-                  {{ option.carrier }} · {{ option.service }} ·
-                  {{ formatCurrency(option.customerPriceCents) }}
+                  {{ shippingOptionLabel(option) }}
                 </option>
               </select>
               <p
@@ -1408,23 +1525,29 @@ defineExpose({ open });
                 {{ quote.shipping.fallback_reason }}
               </p>
             </div>
-            <div class="flex gap-2">
-              <input
+            <label
+              class="block text-[10px] uppercase tracking-wide text-n-slate-10"
+            >
+              {{ t('CONVERSATION_SIDEBAR.NERK.COUPON_CODE') }}
+              <select
                 v-model="couponCode"
-                type="text"
-                class="min-w-0 flex-1 rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-xs uppercase"
-                :placeholder="t('CONVERSATION_SIDEBAR.NERK.COUPON_CODE')"
-              />
-              <button
-                type="button"
-                class="rounded-lg border border-n-weak px-3 py-2 text-xs font-medium"
+                class="mt-1 w-full rounded-lg border border-n-weak bg-n-solid-1 px-2 py-1.5 text-xs"
                 :disabled="!lines.length || saving"
-                @click="saveCart"
+                @change="scheduleCartSave"
               >
-                {{ t('CONVERSATION_SIDEBAR.NERK.APPLY') }}
-              </button>
-            </div>
-            <dl v-if="quote" class="mt-3 space-y-1.5 text-xs">
+                <option value="">
+                  {{ t('CONVERSATION_SIDEBAR.NERK.NO_COUPON') }}
+                </option>
+                <option
+                  v-for="coupon in coupons"
+                  :key="coupon.code"
+                  :value="coupon.code"
+                >
+                  {{ couponLabel(coupon) }}
+                </option>
+              </select>
+            </label>
+            <dl v-if="quote" class="mt-2 space-y-1 text-xs">
               <div class="flex justify-between">
                 <dt class="text-n-slate-11">
                   {{ t('CONVERSATION_SIDEBAR.NERK.SUBTOTAL') }}

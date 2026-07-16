@@ -97,7 +97,7 @@ class Integrations::Nerk::Client
     request(:post, "/api/v1/customers/#{CGI.escape(customer_id)}/carts", {})['data']
   end
 
-  def create_assisted_order(customer_id:, lines:, coupon_code: nil, cart_id: nil, shipping_zip: nil,
+  def create_assisted_order(customer_id:, lines:, coupon_code: nil, cart_id: nil, shipping_address_id: nil, shipping_zip: nil,
                             shipping_service_id: nil, shipping_discount_cents: nil)
     request(
       :post,
@@ -106,6 +106,7 @@ class Integrations::Nerk::Client
         lines: lines,
         coupon_code: coupon_code.presence,
         cart_id: cart_id.presence,
+        shipping_address_id: shipping_address_id.presence,
         shipping_zip: shipping_zip.presence,
         shipping_service_id: shipping_service_id.presence,
         shipping_discount_cents: shipping_discount_cents
