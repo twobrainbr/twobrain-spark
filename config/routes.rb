@@ -373,6 +373,7 @@ Rails.application.routes.draw do
                 get :orders
                 get :products
                 get :carts
+                post :new_cart
                 get :promotions
                 get :tracking
                 post :assisted_order

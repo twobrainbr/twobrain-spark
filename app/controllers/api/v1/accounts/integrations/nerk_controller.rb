@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseController
   before_action :ensure_nerk_enabled
-  before_action :validate_contact, only: [:context, :orders, :carts, :tracking, :assisted_order, :update_order, :complete_lead]
+  before_action :validate_contact, only: [:context, :orders, :carts, :new_cart, :tracking, :assisted_order, :update_order, :complete_lead]
 
   def context
     render json: { context: customer_context }
@@ -29,6 +29,12 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
     render json: { carts: client.carts(customer_id: customer_id) }
   rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
     render json: { error: e.message }, status: :conflict
+  rescue Integrations::Nerk::Client::ApiError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def new_cart
+    render json: { cart: client.start_new_cart(customer_id: customer_id) }
   rescue Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end

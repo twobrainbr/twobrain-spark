@@ -29,6 +29,7 @@ const props = defineProps({
 const emit = defineEmits(['saved']);
 const { t } = useI18n();
 const dialog = ref(null);
+const flowStep = ref('carts');
 const query = ref('');
 const products = ref([]);
 const carts = ref([]);
@@ -85,6 +86,12 @@ const lineVariantAttributes = line =>
 const customerContact = computed(() =>
   [props.customer?.email, props.customer?.phone].filter(Boolean).join(' · ')
 );
+const registrationUrl = computed(() => {
+  if (!props.profileUrl) return '';
+  const separator = props.profileUrl.includes('?') ? '&' : '?';
+  const section = props.customer?.addresses?.length ? 'fiscal' : 'addresses';
+  return `${props.profileUrl}${separator}atendimento=1&etapa=${section}`;
+});
 const productTaxonomy = product =>
   [product.brand?.name, product.category?.name].filter(Boolean).join(' · ');
 
@@ -98,12 +105,11 @@ const applyCart = cart => {
   backofficeUrl.value = cart.backoffice_url || '';
 };
 
-const loadCarts = async (selectFirst = false) => {
+const loadCarts = async () => {
   loadingCarts.value = true;
   try {
     const response = await NerkAPI.getCarts(props.contactId);
     carts.value = response.data.carts || [];
-    if (selectFirst && carts.value.length) applyCart(carts.value[0]);
   } catch (requestError) {
     error.value =
       requestError.response?.data?.error ||
@@ -222,7 +228,7 @@ const setPricingMode = async (line, mode) => {
   await saveCart();
 };
 
-const startNewCart = () => {
+const resetCart = () => {
   currentCartId.value = null;
   lines.value = [];
   quote.value = null;
@@ -231,6 +237,31 @@ const startNewCart = () => {
   backofficeUrl.value = '';
   couponCode.value = '';
   error.value = '';
+};
+
+const selectCart = async cart => {
+  applyCart(cart);
+  flowStep.value = 'pdv';
+  if (!promotions.value.length) await loadPromotions();
+};
+
+const startNewCart = async () => {
+  saving.value = true;
+  error.value = '';
+  try {
+    const response = await NerkAPI.startNewCart(props.contactId);
+    applyCart(response.data.cart);
+    carts.value = [response.data.cart];
+    flowStep.value = 'pdv';
+    await loadPromotions();
+    emit('saved');
+  } catch (requestError) {
+    error.value =
+      requestError.response?.data?.error ||
+      t('CONVERSATION_SIDEBAR.NERK.CART_CREATE_ERROR');
+  } finally {
+    saving.value = false;
+  }
 };
 
 const copyLink = async (type, value) => {
@@ -242,9 +273,10 @@ const copyLink = async (type, value) => {
 };
 
 const open = async () => {
-  startNewCart();
+  resetCart();
+  flowStep.value = 'carts';
   dialog.value?.open();
-  await Promise.all([loadCarts(true), loadPromotions()]);
+  await loadCarts();
 };
 
 onBeforeUnmount(() => window.clearTimeout(searchTimer));
@@ -319,7 +351,7 @@ defineExpose({ open });
         </span>
         <a
           v-if="profileUrl"
-          :href="profileUrl"
+          :href="registrationUrl"
           target="_blank"
           rel="noopener noreferrer"
           class="rounded-lg border border-n-amber-7 bg-n-solid-1 px-3 py-2 font-medium text-n-amber-11"
@@ -331,37 +363,127 @@ defineExpose({ open });
         {{ error }}
       </p>
 
-      <div class="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
+      <div class="grid grid-cols-2 gap-2 rounded-xl bg-n-alpha-2 p-1.5">
+        <div
+          class="rounded-lg px-3 py-2"
+          :class="
+            flowStep === 'carts'
+              ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
+              : 'text-n-slate-11'
+          "
+        >
+          <p class="text-[11px] font-medium uppercase tracking-wide">
+            {{ t('CONVERSATION_SIDEBAR.NERK.STEP_ONE') }}
+          </p>
+          <p class="text-sm font-medium">
+            {{ t('CONVERSATION_SIDEBAR.NERK.SELECT_CART_STEP') }}
+          </p>
+        </div>
+        <div
+          class="rounded-lg px-3 py-2"
+          :class="
+            flowStep === 'pdv'
+              ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
+              : 'text-n-slate-11'
+          "
+        >
+          <p class="text-[11px] font-medium uppercase tracking-wide">
+            {{ t('CONVERSATION_SIDEBAR.NERK.STEP_TWO') }}
+          </p>
+          <p class="text-sm font-medium">
+            {{ t('CONVERSATION_SIDEBAR.NERK.BUILD_SALE_STEP') }}
+          </p>
+        </div>
+      </div>
+
+      <section
+        v-if="flowStep === 'carts'"
+        class="min-h-0 overflow-y-auto rounded-xl border border-n-weak bg-n-solid-1 p-5"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 class="text-base font-medium text-n-slate-12">
+              {{ t('CONVERSATION_SIDEBAR.NERK.OPEN_CARTS_TITLE') }}
+            </h3>
+            <p class="mt-1 max-w-2xl text-sm text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.NERK.OPEN_CARTS_DESCRIPTION') }}
+            </p>
+          </div>
+          <Button
+            :label="t('CONVERSATION_SIDEBAR.NERK.CREATE_NEW_CART')"
+            color="blue"
+            size="sm"
+            :is-loading="saving"
+            @click="startNewCart"
+          />
+        </div>
+        <div v-if="loadingCarts" class="flex justify-center py-12">
+          <Spinner size="24" class="text-n-brand" />
+        </div>
+        <div v-else-if="carts.length" class="mt-5 grid gap-3 md:grid-cols-2">
+          <button
+            v-for="cart in carts"
+            :key="cart.id"
+            type="button"
+            class="group rounded-xl border border-n-weak p-4 text-left transition hover:border-n-brand hover:bg-n-brand/5"
+            @click="selectCart(cart)"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-sm font-medium text-n-slate-12">
+                  {{ t('CONVERSATION_SIDEBAR.NERK.CART_IN_PROGRESS') }}
+                </p>
+                <p class="mt-1 text-xs text-n-slate-11">
+                  {{
+                    t('CONVERSATION_SIDEBAR.NERK.CART_ITEMS_COUNT', {
+                      count: cart.quote?.lines?.length || 0,
+                    })
+                  }}
+                </p>
+              </div>
+              <span class="text-sm font-semibold text-n-slate-12">
+                {{ formatCurrency(cart.quote?.amounts?.estimated_total_cents) }}
+              </span>
+            </div>
+            <div
+              class="mt-4 flex items-center justify-between border-t border-n-weak pt-3"
+            >
+              <span class="font-mono text-[11px] text-n-slate-10">
+                {{ cart.id.slice(0, 8) }}
+              </span>
+              <span class="text-xs font-medium text-n-brand">
+                {{ t('CONVERSATION_SIDEBAR.NERK.CONTINUE_CART') }}
+              </span>
+            </div>
+          </button>
+        </div>
+        <div v-else class="py-12 text-center">
+          <p class="text-sm font-medium text-n-slate-12">
+            {{ t('CONVERSATION_SIDEBAR.NERK.NO_OPEN_CART') }}
+          </p>
+          <p class="mt-1 text-sm text-n-slate-11">
+            {{ t('CONVERSATION_SIDEBAR.NERK.NO_OPEN_CART_DESCRIPTION') }}
+          </p>
+        </div>
+      </section>
+
+      <div v-else class="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section class="flex min-h-0 flex-col gap-3">
           <div class="flex items-center gap-2 overflow-x-auto pb-1">
             <button
               type="button"
               class="shrink-0 rounded-lg border border-n-weak px-3 py-2 text-xs font-medium text-n-slate-12"
+              @click="flowStep = 'carts'"
+            >
+              {{ t('CONVERSATION_SIDEBAR.NERK.BACK_TO_CARTS') }}
+            </button>
+            <button
+              type="button"
+              class="shrink-0 rounded-lg border border-n-weak px-3 py-2 text-xs font-medium text-n-slate-12"
+              :disabled="saving"
               @click="startNewCart"
             >
               {{ t('CONVERSATION_SIDEBAR.NERK.NEW_CART') }}
-            </button>
-            <Spinner v-if="loadingCarts" size="18" class="text-n-brand" />
-            <button
-              v-for="cart in carts"
-              :key="cart.id"
-              type="button"
-              class="shrink-0 rounded-lg border px-3 py-2 text-left text-xs"
-              :class="
-                currentCartId === cart.id
-                  ? 'border-n-brand bg-n-brand/10 text-n-brand'
-                  : 'border-n-weak text-n-slate-11'
-              "
-              @click="applyCart(cart)"
-            >
-              <span class="block font-medium">{{
-                t('CONVERSATION_SIDEBAR.NERK.CART_SHORT', {
-                  id: cart.id.slice(0, 8),
-                })
-              }}</span>
-              <span>{{
-                formatCurrency(cart.quote?.amounts?.estimated_total_cents)
-              }}</span>
             </button>
           </div>
 
