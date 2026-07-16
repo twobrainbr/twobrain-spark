@@ -34,7 +34,10 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
   end
 
   def new_cart
+    customer_id = customer_context.dig('customer', 'id')
     render json: { cart: client.start_new_cart(customer_id: customer_id) }
+  rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
+    render json: { error: e.message }, status: :conflict
   rescue Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
