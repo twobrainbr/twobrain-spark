@@ -18,7 +18,14 @@ module SafeFetch
   class InvalidUrlError < Error; end
   class UnsafeUrlError < Error; end
   class FetchError < Error; end
-  class HttpError < Error; end
+  class HttpError < Error
+    attr_reader :response_body
+
+    def initialize(message, response_body: nil)
+      super(message)
+      @response_body = response_body
+    end
+  end
   class FileTooLargeError < Error; end
   class UnsupportedContentTypeError < Error; end
   class UnsupportedMethodError < Error; end

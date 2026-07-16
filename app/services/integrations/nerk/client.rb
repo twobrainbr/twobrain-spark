@@ -75,11 +75,15 @@ class Integrations::Nerk::Client
     Array(data['coupons']).filter_map { |coupon| present_available_coupon(coupon) }
   end
 
-  def create_assisted_order(customer_id:, lines:, coupon_code: nil)
+  def carts(customer_id:)
+    Array(get('/api/v1/carts', customer_id: customer_id, limit: 20)['data'])
+  end
+
+  def create_assisted_order(customer_id:, lines:, coupon_code: nil, cart_id: nil)
     request(
       :post,
       "/api/v1/customers/#{CGI.escape(customer_id)}/assisted-order",
-      { lines: lines, coupon_code: coupon_code.presence }
+      { lines: lines, coupon_code: coupon_code.presence, cart_id: cart_id.presence }.compact
     )['data']
   end
 
@@ -101,13 +105,14 @@ class Integrations::Nerk::Client
         'Authorization' => "Bearer #{@access_token}"
       },
       max_bytes: MAX_RESPONSE_SIZE,
-      validate_content_type: false
+      validate_content_type: false,
+      capture_error_body: true
     ) { |result| response_body = result.tempfile.read }
     JSON.parse(response_body)
   rescue JSON::ParserError
     raise ApiError, 'A API da NERK retornou uma resposta inválida.'
   rescue SafeFetch::HttpError => e
-    raise ApiError, "Falha na API da NERK: #{e.message}"
+    raise ApiError, api_error_message(e)
   rescue SafeFetch::Error => e
     raise ApiError, "Falha na comunicação com a NERK: #{e.message}"
   end
@@ -124,7 +129,8 @@ class Integrations::Nerk::Client
         'Authorization' => "Bearer #{@access_token}"
       },
       max_bytes: MAX_RESPONSE_SIZE,
-      validate_content_type: false
+      validate_content_type: false,
+      capture_error_body: true
     ) { |result| response_body = result.tempfile.read }
 
     JSON.parse(response_body)
@@ -137,7 +143,7 @@ class Integrations::Nerk::Client
             'Adicione ao contato o mesmo e-mail ou telefone usado na NERK e atualize este painel para consultar pedidos e benefícios.'
     end
 
-    raise ApiError, "NERK API request failed: #{e.message}"
+    raise ApiError, api_error_message(e)
   rescue SafeFetch::Error => e
     raise ApiError, "NERK API request failed: #{e.message}"
   end
@@ -152,6 +158,13 @@ class Integrations::Nerk::Client
     raise ApiError, e.message
   end
 
+  def api_error_message(error)
+    detail = JSON.parse(error.response_body.to_s)['detail'] if error.response_body.present?
+    detail.presence || "Falha na API da NERK: #{error.message}"
+  rescue JSON::ParserError
+    "Falha na API da NERK: #{error.message}"
+  end
+
   def present_context(data)
     commerce = data['commerce'].is_a?(Hash) ? data['commerce'] : {}
     customer = data['customer'].is_a?(Hash) ? data['customer'] : nil
@@ -159,7 +172,7 @@ class Integrations::Nerk::Client
       'identity_match' => data['identity_match'],
       'customer' => customer&.slice(
         'id', 'name', 'email', 'phone', 'person_type', 'document', 'company_name', 'trade_name', 'city', 'bio',
-        'country_code', 'social_profiles', 'lead_score', 'lifetime_value_cents'
+        'country_code', 'social_profiles', 'lead_score', 'lifetime_value_cents', 'addresses'
       ),
       'commerce' => {
         'orders' => Array(commerce['orders']).map { |order| present_order(order) },
@@ -255,7 +268,17 @@ class Integrations::Nerk::Client
       'variants' => Array(product['variants']).map do |variant|
         variant.slice('id', 'name', 'sku', 'stock', 'active').merge(
           'price_cents' => variant['price_cents'] || variant['priceCents'],
-          'club_price_cents' => variant['club_price_cents'] || variant['clubPriceCents']
+          'offer_price_cents' => variant['offer_price_cents'] || variant['offerPriceCents'] || variant['price_cents'] || variant['priceCents'],
+          'club_price_cents' => variant['club_price_cents'] || variant['clubPriceCents'],
+          'promotion' => variant['promotion'],
+          'attributes' => Array(variant['attributes']).map do |attribute|
+            {
+              'name' => attribute['name'],
+              'value' => attribute['value'],
+              'color_hex' => attribute['color_hex'] || attribute['colorHex']
+            }
+          end,
+          'images' => Array(variant['images']).map { |image| image.slice('url', 'alt', 'position') }
         )
       end
     )
@@ -263,7 +286,6 @@ class Integrations::Nerk::Client
 
   def present_available_coupon(coupon)
     return unless coupon['active']
-    return if coupon['staffOnly'] || coupon['staff_only']
     return if coupon['usageLimit'] && coupon['usedCount'].to_i >= coupon['usageLimit'].to_i
     return if coupon['startsAt'].present? && Time.iso8601(coupon['startsAt']) > Time.current
     return if coupon['expiresAt'].present? && Time.iso8601(coupon['expiresAt']) <= Time.current
@@ -274,7 +296,9 @@ class Integrations::Nerk::Client
       'value' => coupon['value'],
       'minimum_order_cents' => coupon['minOrderCents'] || coupon['min_order_cents'],
       'maximum_discount_cents' => coupon['maxDiscountCents'] || coupon['max_discount_cents'],
-      'expires_at' => coupon['expiresAt'] || coupon['expires_at']
+      'expires_at' => coupon['expiresAt'] || coupon['expires_at'],
+      'staff_only' => coupon['staffOnly'] || coupon['staff_only'],
+      'description' => coupon['description']
     }
   rescue ArgumentError
     nil

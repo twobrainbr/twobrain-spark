@@ -493,6 +493,16 @@ RSpec.describe SafeFetch do
           expect(error.class.name).to eq('SafeFetch::HttpError')
         end
       end
+
+      it 'captures the response body only when requested' do
+        problem = { detail: 'Estoque insuficiente.' }.to_json
+        stub_request(:get, url).to_return(status: 400, body: problem, headers: { 'Content-Type' => 'application/problem+json' })
+
+        expect { described_class.fetch(url, capture_error_body: true) { nil } }.to raise_error do |error|
+          expect(error.class.name).to eq('SafeFetch::HttpError')
+          expect(error.response_body).to eq(problem)
+        end
+      end
     end
   end
 end
