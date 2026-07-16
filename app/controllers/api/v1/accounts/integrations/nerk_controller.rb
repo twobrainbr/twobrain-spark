@@ -67,9 +67,12 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
 
   def assisted_order
     customer_id = customer_context.dig('customer', 'id')
+    lines = params.fetch(:lines)
+    raise ActionController::ParameterMissing, :lines unless lines.is_a?(Array)
+
     result = client.create_assisted_order(
       customer_id: customer_id,
-      lines: params.require(:lines).map { |line| line.permit(:variant_id, :quantity, :pricing_mode).to_h },
+      lines: lines.map { |line| line.permit(:variant_id, :quantity, :pricing_mode).to_h },
       coupon_code: params[:coupon_code],
       cart_id: params[:cart_id],
       shipping_zip: params[:shipping_zip],
