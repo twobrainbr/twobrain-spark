@@ -137,12 +137,19 @@ defineExpose({ open, close });
       :class="[
         maxWidthClass,
         positionClass,
-        overflowYAuto ? 'overflow-y-auto' : 'overflow-visible',
+        width === 'panel'
+          ? 'overflow-hidden'
+          : overflowYAuto
+            ? 'overflow-y-auto'
+            : 'overflow-visible',
       ]"
       @close.prevent="handleDialogClose"
       @cancel="handleCancel"
     >
-      <OnClickOutside @trigger="handleClickOutside">
+      <OnClickOutside
+        :class="width === 'panel' ? 'block h-full overflow-hidden' : 'block'"
+        @trigger="handleClickOutside"
+      >
         <form
           ref="dialogContentRef"
           class="flex flex-col w-full gap-6 p-6 overflow-visible text-start align-middle transition-all duration-300 ease-in-out transform bg-n-alpha-3 backdrop-blur-[100px] shadow-xl"
