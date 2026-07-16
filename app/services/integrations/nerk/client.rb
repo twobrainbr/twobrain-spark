@@ -1,5 +1,6 @@
 class Integrations::Nerk::Client
   class ApiError < StandardError; end
+  class IdentityVerificationRequired < ApiError; end
 
   MAX_RESPONSE_SIZE = 1.megabyte
 
@@ -94,6 +95,13 @@ class Integrations::Nerk::Client
     JSON.parse(response_body)
   rescue JSON::ParserError
     raise ApiError, 'NERK API returned invalid JSON'
+  rescue SafeFetch::HttpError => e
+    if e.message.start_with?('409 ')
+      raise IdentityVerificationRequired,
+            'This social contact is synchronized, but must be linked to a verified NERK customer before orders can be displayed.'
+    end
+
+    raise ApiError, "NERK API request failed: #{e.message}"
   rescue SafeFetch::Error => e
     raise ApiError, "NERK API request failed: #{e.message}"
   end
