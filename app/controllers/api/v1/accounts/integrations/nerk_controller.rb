@@ -19,8 +19,8 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
   end
 
   def products
-    render json: { products: client.products(query: params.require(:query)) }
-  rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
+    render json: { products: client.products(query: params[:query]) }
+  rescue Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
@@ -43,7 +43,7 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
   end
 
   def promotions
-    render json: { promotions: client.promotions }
+    render json: client.promotions
   rescue Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
@@ -92,13 +92,18 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
   end
 
   def complete_lead
-    contact.update!(
+    synchronized = client.sync_lead(
       name: params.require(:name),
       email: params.require(:email),
-      phone_number: params.require(:phone_number)
+      phone: params.require(:phone_number)
+    )
+    contact.update!(
+      name: synchronized['name'],
+      email: synchronized['email'],
+      phone_number: synchronized['phone']
     )
     render json: { contact: contact.slice(:id, :name, :email, :phone_number) }
-  rescue ActionController::ParameterMissing, ActiveRecord::RecordInvalid => e
+  rescue ActionController::ParameterMissing, ActiveRecord::RecordInvalid, Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
