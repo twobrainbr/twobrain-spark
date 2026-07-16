@@ -43,6 +43,7 @@ const cartUrl = ref('');
 const paymentUrl = ref('');
 const backofficeUrl = ref('');
 const couponCode = ref('');
+const cartPricingMode = ref('official');
 const searching = ref(false);
 const loadingCarts = ref(false);
 const saving = ref(false);
@@ -124,11 +125,25 @@ const selectedVariant = product => {
   const selectedId = selectedVariantIds.value[product.id];
   return available.find(variant => variant.id === selectedId) || available[0];
 };
+const comboImages = combo =>
+  (combo.items || [])
+    .map(item => productImage(item.product || {}))
+    .filter(Boolean)
+    .slice(0, 3);
+const lineCombo = line =>
+  combos.value.find(combo => combo.id === (line.comboId || line.combo_id));
 
 const applyCart = cart => {
   currentCartId.value = cart.id;
   quote.value = cart.quote;
   lines.value = (cart.quote?.lines || []).map(line => ({ ...line }));
+  cartPricingMode.value =
+    lines.value.length &&
+    lines.value.every(
+      line => (line.pricingMode || line.pricing_mode) === 'club'
+    )
+      ? 'club'
+      : 'official';
   couponCode.value = cart.quote?.coupon_code || '';
   cartUrl.value = cart.cart_url || '';
   paymentUrl.value = cart.payment_url || '';
@@ -238,7 +253,7 @@ const addCombo = async combo => {
         imageUrl: variantImage(product, variant),
         stock: variant.stock,
         quantity: item.required_quantity || 1,
-        pricingMode: 'official',
+        pricingMode: cartPricingMode.value,
         referencePriceCents: variant.price_cents,
         officialPriceCents: variant.offer_price_cents,
         clubPriceCents: variant.club_price_cents,
@@ -267,7 +282,7 @@ const addVariant = async (product, variant) => {
       imageUrl: variantImage(product, variant),
       stock: variant.stock,
       quantity: 1,
-      pricingMode: 'official',
+      pricingMode: cartPricingMode.value,
       referencePriceCents: variant.price_cents,
       officialPriceCents: variant.offer_price_cents,
       clubPriceCents: variant.club_price_cents,
@@ -298,11 +313,14 @@ const removeLine = async line => {
   await saveCart();
 };
 
-const setPricingMode = async (line, mode) => {
+const setCartPricingMode = async mode => {
   if (mode === 'club' && !clubEligible.value) return;
-  line.pricingMode = mode;
-  line.pricing_mode = mode;
-  await saveCart();
+  cartPricingMode.value = mode;
+  lines.value.forEach(line => {
+    line.pricingMode = mode;
+    line.pricing_mode = mode;
+  });
+  if (lines.value.length) await saveCart();
 };
 
 const resetCart = () => {
@@ -377,10 +395,15 @@ defineExpose({ open });
     :show-cancel-button="false"
     :show-confirm-button="false"
     prevent-close
-    overflow-y-auto
   >
-    <div class="flex min-h-0 flex-1 flex-col gap-4">
+    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
       <div class="flex items-center gap-3 rounded-lg bg-n-alpha-2 px-3 py-2">
+        <img
+          src="/dashboard/images/integrations/nerk.svg"
+          :alt="t('CONVERSATION_SIDEBAR.NERK.BRAND_LOGO')"
+          class="h-7 w-auto rounded-md"
+        />
+        <span class="h-7 w-px bg-n-weak" />
         <img
           v-if="customer?.avatar_url"
           :src="customer.avatar_url"
@@ -538,8 +561,11 @@ defineExpose({ open });
         </div>
       </section>
 
-      <div v-else class="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
-        <section class="flex min-h-0 flex-col gap-3">
+      <div
+        v-else
+        class="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[minmax(0,1fr)_22rem]"
+      >
+        <section class="flex min-h-0 flex-col gap-3 overflow-hidden">
           <div class="flex items-center gap-2 overflow-x-auto pb-1">
             <button
               type="button"
@@ -601,26 +627,41 @@ defineExpose({ open });
             </div>
           </div>
 
-          <div v-if="combos.length" class="space-y-2">
+          <div v-if="combos.length" class="shrink-0 space-y-2">
             <p
               class="text-xs font-medium uppercase tracking-wide text-n-slate-10"
             >
               {{ t('CONVERSATION_SIDEBAR.NERK.AVAILABLE_COMBOS') }}
             </p>
-            <div class="flex gap-2 overflow-x-auto pb-1">
+            <div class="grid gap-2 sm:grid-cols-2">
               <button
                 v-for="combo in combos"
                 :key="combo.id"
                 type="button"
-                class="shrink-0 rounded-lg border border-n-teal-7 bg-n-teal-2 px-3 py-2 text-left text-xs"
+                class="flex items-center gap-3 rounded-xl border border-n-teal-7 bg-n-teal-2 p-2.5 text-left text-xs transition hover:border-n-teal-9"
                 :disabled="saving"
                 @click="addCombo(combo)"
               >
-                <span class="block font-medium text-n-teal-12">{{
-                  combo.name
-                }}</span>
-                <span class="text-n-teal-11">{{
-                  combo.description || t('CONVERSATION_SIDEBAR.NERK.ADD_COMBO')
+                <span class="flex -space-x-3">
+                  <img
+                    v-for="(image, index) in comboImages(combo)"
+                    :key="`${combo.id}-${index}`"
+                    :src="image"
+                    :alt="combo.name"
+                    class="size-11 rounded-lg border-2 border-n-teal-2 object-cover"
+                  />
+                </span>
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate font-medium text-n-teal-12">{{
+                    combo.name
+                  }}</span>
+                  <span class="line-clamp-2 text-n-teal-11">{{
+                    combo.description ||
+                    t('CONVERSATION_SIDEBAR.NERK.ADD_COMBO')
+                  }}</span>
+                </span>
+                <span class="font-medium text-n-teal-12">{{
+                  t('CONVERSATION_SIDEBAR.NERK.INCREASE_SYMBOL')
                 }}</span>
               </button>
             </div>
@@ -733,7 +774,7 @@ defineExpose({ open });
         </section>
 
         <aside
-          class="flex min-h-0 flex-col rounded-lg border border-n-weak bg-n-solid-1"
+          class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-n-weak bg-n-solid-1"
         >
           <div class="border-b border-n-weak p-4">
             <div class="flex items-center justify-between">
@@ -745,6 +786,36 @@ defineExpose({ open });
             <p class="mt-1 text-xs text-n-slate-11">
               {{ cartSyncLabel }}
             </p>
+            <div
+              class="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-n-alpha-2 p-1"
+            >
+              <button
+                type="button"
+                class="rounded-md px-2 py-1.5 text-[11px] font-medium"
+                :class="
+                  cartPricingMode === 'official'
+                    ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
+                    : 'text-n-slate-11'
+                "
+                :disabled="saving"
+                @click="setCartPricingMode('official')"
+              >
+                {{ t('CONVERSATION_SIDEBAR.NERK.REGULAR_PRICE') }}
+              </button>
+              <button
+                type="button"
+                class="rounded-md px-2 py-1.5 text-[11px] font-medium"
+                :class="
+                  cartPricingMode === 'club'
+                    ? 'bg-n-teal-3 text-n-teal-11 shadow-sm'
+                    : 'text-n-slate-11'
+                "
+                :disabled="!clubEligible || saving"
+                @click="setCartPricingMode('club')"
+              >
+                {{ t('CONVERSATION_SIDEBAR.NERK.CLUB_PRICE') }}
+              </button>
+            </div>
           </div>
 
           <div class="min-h-0 flex-1 divide-y divide-n-weak overflow-y-auto">
@@ -752,7 +823,18 @@ defineExpose({ open });
               v-for="line in lines"
               :key="line.variantId || line.variant_id"
               class="p-3"
+              :class="
+                lineCombo(line)
+                  ? 'border-l-2 border-n-teal-8 bg-n-teal-2/40'
+                  : ''
+              "
             >
+              <p
+                v-if="lineCombo(line)"
+                class="mb-2 text-[10px] font-medium uppercase tracking-wide text-n-teal-11"
+              >
+                {{ lineCombo(line).name }}
+              </p>
               <div class="flex gap-2">
                 <img
                   :src="line.imageUrl || line.image_url"
@@ -813,36 +895,6 @@ defineExpose({ open });
                   )
                 }}</span>
               </div>
-              <div
-                class="mt-2 grid grid-cols-2 gap-1 rounded-md bg-n-alpha-2 p-1"
-              >
-                <button
-                  type="button"
-                  class="rounded px-2 py-1 text-[11px]"
-                  :class="
-                    (line.pricingMode || line.pricing_mode) !== 'club'
-                      ? 'bg-n-solid-1 text-n-slate-12'
-                      : 'text-n-slate-11'
-                  "
-                  :disabled="saving"
-                  @click="setPricingMode(line, 'official')"
-                >
-                  {{ t('CONVERSATION_SIDEBAR.NERK.REGULAR_PRICE') }}
-                </button>
-                <button
-                  type="button"
-                  class="rounded px-2 py-1 text-[11px]"
-                  :class="
-                    (line.pricingMode || line.pricing_mode) === 'club'
-                      ? 'bg-n-teal-3 text-n-teal-11'
-                      : 'text-n-slate-11'
-                  "
-                  :disabled="!clubEligible || saving"
-                  @click="setPricingMode(line, 'club')"
-                >
-                  {{ t('CONVERSATION_SIDEBAR.NERK.CLUB_PRICE') }}
-                </button>
-              </div>
             </div>
             <p
               v-if="!lines.length"
@@ -902,10 +954,10 @@ defineExpose({ open });
                 <dd>{{ formatCurrency(amounts.estimated_total_cents) }}</dd>
               </div>
             </dl>
-            <div v-if="cartUrl" class="mt-3 grid grid-cols-2 gap-2">
+            <div v-if="cartUrl" class="mt-3 grid grid-cols-3 gap-1.5">
               <button
                 type="button"
-                class="rounded-lg border border-n-weak px-3 py-2 text-xs font-medium text-n-slate-12"
+                class="rounded-lg border border-n-weak px-2 py-2 text-[11px] font-medium text-n-slate-12"
                 @click="copyLink('cart', cartUrl)"
               >
                 {{
@@ -916,7 +968,7 @@ defineExpose({ open });
               </button>
               <button
                 type="button"
-                class="rounded-lg bg-n-brand px-3 py-2 text-xs font-medium text-white"
+                class="rounded-lg bg-n-brand px-2 py-2 text-[11px] font-medium text-white"
                 @click="copyLink('payment', paymentUrl)"
               >
                 {{
@@ -930,7 +982,7 @@ defineExpose({ open });
                 :href="backofficeUrl"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="col-span-2 rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12"
+                class="rounded-lg border border-n-weak px-2 py-2 text-center text-[11px] font-medium text-n-slate-12"
               >
                 {{ t('CONVERSATION_SIDEBAR.NERK.OPEN_BACKOFFICE') }}
               </a>
