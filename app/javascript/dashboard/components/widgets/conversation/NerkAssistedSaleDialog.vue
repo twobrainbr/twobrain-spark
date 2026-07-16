@@ -34,6 +34,7 @@ const query = ref('');
 const products = ref([]);
 const carts = ref([]);
 const promotions = ref([]);
+const combos = ref([]);
 const lines = ref([]);
 const currentCartId = ref(null);
 const quote = ref(null);
@@ -139,8 +140,10 @@ const loadPromotions = async () => {
   try {
     const response = await NerkAPI.getPromotions();
     promotions.value = response.data.promotions || [];
+    combos.value = response.data.combos || [];
   } catch {
     promotions.value = [];
+    combos.value = [];
   }
 };
 
@@ -161,10 +164,6 @@ const searchProducts = async term => {
 watch(query, value => {
   window.clearTimeout(searchTimer);
   const term = value.trim();
-  if (term.length < 2) {
-    products.value = [];
-    return;
-  }
   searchTimer = window.setTimeout(() => searchProducts(term), 300);
 });
 
@@ -194,6 +193,40 @@ const saveCart = async () => {
   } finally {
     saving.value = false;
   }
+};
+
+const addCombo = async combo => {
+  (combo.items || []).forEach(item => {
+    const product = item.product;
+    const variant =
+      product?.variants?.find(candidate => candidate.id === item.variant_id) ||
+      product?.variants?.find(candidate => candidate.active && candidate.stock);
+    if (!product || !variant) return;
+    const existing = lines.value.find(
+      line => (line.variantId || line.variant_id) === variant.id
+    );
+    if (existing) existing.quantity += item.required_quantity || 1;
+    else {
+      lines.value.push({
+        variantId: variant.id,
+        productId: product.id,
+        productName: product.name,
+        variantName: variant.name,
+        sku: variant.sku,
+        imageUrl: variantImage(product, variant),
+        stock: variant.stock,
+        quantity: item.required_quantity || 1,
+        pricingMode: 'official',
+        referencePriceCents: variant.price_cents,
+        officialPriceCents: variant.offer_price_cents,
+        clubPriceCents: variant.club_price_cents,
+        unitPriceCents: variant.offer_price_cents,
+        promotionName: variant.promotion?.name,
+        attributes: variant.attributes || [],
+      });
+    }
+  });
+  await saveCart();
 };
 
 const addVariant = async (product, variant) => {
@@ -263,6 +296,7 @@ const selectCart = async cart => {
   applyCart(cart);
   flowStep.value = 'pdv';
   if (!promotions.value.length) await loadPromotions();
+  await searchProducts(query.value.trim());
 };
 
 const startNewCart = async () => {
@@ -274,6 +308,7 @@ const startNewCart = async () => {
     carts.value = [response.data.cart];
     flowStep.value = 'pdv';
     await loadPromotions();
+    await searchProducts(query.value.trim());
     emit('saved');
     emit('cartsUpdated');
   } catch (requestError) {
@@ -309,14 +344,15 @@ defineExpose({ open });
 <template>
   <Dialog
     ref="dialog"
-    width="5xl"
+    width="panel"
+    position="right"
     :title="t('CONVERSATION_SIDEBAR.NERK.ASSISTED_SALE_TITLE')"
     :show-cancel-button="false"
     :show-confirm-button="false"
     prevent-close
     overflow-y-auto
   >
-    <div class="flex max-h-[78vh] flex-col gap-4">
+    <div class="flex min-h-0 flex-1 flex-col gap-4">
       <div
         class="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-n-alpha-2 p-3"
       >
@@ -525,29 +561,63 @@ defineExpose({ open });
             />
           </div>
 
-          <div v-if="promotions.length" class="flex gap-2 overflow-x-auto pb-1">
-            <button
-              v-for="promotion in promotions"
-              :key="promotion.code"
-              type="button"
-              class="shrink-0 rounded-lg border border-n-weak bg-n-alpha-2 px-3 py-2 text-left text-xs"
-              :disabled="saving"
-              @click="
-                couponCode = promotion.code;
-                saveCart();
-              "
+          <div v-if="promotions.length" class="space-y-2">
+            <p
+              class="text-xs font-medium uppercase tracking-wide text-n-slate-10"
             >
-              <span class="block font-medium text-n-slate-12">{{
-                promotion.code
-              }}</span>
-              <span class="text-n-slate-11">{{
-                promotion.description ||
-                t('CONVERSATION_SIDEBAR.NERK.AVAILABLE_COUPON')
-              }}</span>
-            </button>
+              {{ t('CONVERSATION_SIDEBAR.NERK.AVAILABLE_COUPONS') }}
+            </p>
+            <div class="flex gap-2 overflow-x-auto pb-1">
+              <button
+                v-for="promotion in promotions"
+                :key="promotion.code"
+                type="button"
+                class="shrink-0 rounded-lg border border-n-weak bg-n-alpha-2 px-3 py-2 text-left text-xs"
+                :disabled="saving"
+                @click="
+                  couponCode = promotion.code;
+                  saveCart();
+                "
+              >
+                <span class="block font-medium text-n-slate-12">{{
+                  promotion.code
+                }}</span>
+                <span class="text-n-slate-11">{{
+                  promotion.description ||
+                  t('CONVERSATION_SIDEBAR.NERK.AVAILABLE_COUPON')
+                }}</span>
+              </button>
+            </div>
           </div>
 
-          <div class="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          <div v-if="combos.length" class="space-y-2">
+            <p
+              class="text-xs font-medium uppercase tracking-wide text-n-slate-10"
+            >
+              {{ t('CONVERSATION_SIDEBAR.NERK.AVAILABLE_COMBOS') }}
+            </p>
+            <div class="flex gap-2 overflow-x-auto pb-1">
+              <button
+                v-for="combo in combos"
+                :key="combo.id"
+                type="button"
+                class="shrink-0 rounded-lg border border-n-teal-7 bg-n-teal-2 px-3 py-2 text-left text-xs"
+                :disabled="saving"
+                @click="addCombo(combo)"
+              >
+                <span class="block font-medium text-n-teal-12">{{
+                  combo.name
+                }}</span>
+                <span class="text-n-teal-11">{{
+                  combo.description || t('CONVERSATION_SIDEBAR.NERK.ADD_COMBO')
+                }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div
+            class="grid min-h-0 flex-1 auto-rows-max grid-cols-2 gap-3 overflow-y-auto pr-1 xl:grid-cols-3"
+          >
             <article
               v-for="product in products"
               :key="product.id"
@@ -615,8 +685,8 @@ defineExpose({ open });
               </div>
             </article>
             <p
-              v-if="query.trim().length >= 2 && !searching && !products.length"
-              class="py-8 text-center text-sm text-n-slate-11"
+              v-if="!searching && !products.length"
+              class="col-span-full rounded-xl border border-dashed border-n-weak p-10 text-center text-sm text-n-slate-11"
             >
               {{ t('CONVERSATION_SIDEBAR.NERK.NO_PRODUCTS_FOUND') }}
             </p>

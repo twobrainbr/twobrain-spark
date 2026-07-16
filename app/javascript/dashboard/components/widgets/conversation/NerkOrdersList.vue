@@ -123,6 +123,10 @@ const fetchCarts = async (silent = false) => {
 const refreshWorkspace = (silent = false) =>
   Promise.all([fetchContext(silent), fetchCarts(silent)]);
 
+const refreshWhenVisible = () => {
+  if (document.visibilityState === 'visible') refreshWorkspace(true);
+};
+
 const completeLead = async () => {
   savingLead.value = true;
   try {
@@ -175,9 +179,15 @@ watch(
   { immediate: true }
 );
 onMounted(() => {
-  refreshTimer = window.setInterval(() => refreshWorkspace(true), 30000);
+  refreshTimer = window.setInterval(() => refreshWorkspace(true), 5000);
+  window.addEventListener('focus', refreshWhenVisible);
+  document.addEventListener('visibilitychange', refreshWhenVisible);
 });
-onBeforeUnmount(() => window.clearInterval(refreshTimer));
+onBeforeUnmount(() => {
+  window.clearInterval(refreshTimer);
+  window.removeEventListener('focus', refreshWhenVisible);
+  document.removeEventListener('visibilitychange', refreshWhenVisible);
+});
 </script>
 
 <template>

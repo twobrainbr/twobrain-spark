@@ -19,7 +19,7 @@ class NerkAPI extends ApiClient {
     });
   }
 
-  searchProducts(query) {
+  searchProducts(query = '') {
     return axios.get(`${this.url}/products`, { params: { query } });
   }
 

@@ -52,12 +52,12 @@ const props = defineProps({
     type: String,
     default: 'lg',
     validator: value =>
-      ['5xl', '3xl', '2xl', 'xl', 'lg', 'md', 'sm'].includes(value),
+      ['panel', '5xl', '3xl', '2xl', 'xl', 'lg', 'md', 'sm'].includes(value),
   },
   position: {
     type: String,
     default: 'center',
-    validator: value => ['center', 'top'].includes(value),
+    validator: value => ['center', 'top', 'right'].includes(value),
   },
   preventClose: {
     type: Boolean,
@@ -75,6 +75,8 @@ const isOpen = ref(false);
 
 const maxWidthClass = computed(() => {
   const classesMap = {
+    panel:
+      'max-w-none w-[70vw] min-w-[48rem] h-screen max-h-screen ml-auto mr-0 rounded-none',
     '5xl': 'max-w-5xl',
     '3xl': 'max-w-3xl',
     '2xl': 'max-w-2xl',
@@ -87,9 +89,11 @@ const maxWidthClass = computed(() => {
   return classesMap[props.width] ?? 'max-w-md';
 });
 
-const positionClass = computed(() =>
-  props.position === 'top' ? 'dialog-position-top' : ''
-);
+const positionClass = computed(() => {
+  if (props.position === 'top') return 'dialog-position-top';
+  if (props.position === 'right') return 'mt-0 mb-0';
+  return '';
+});
 
 const open = () => {
   isOpen.value = true;
@@ -129,7 +133,7 @@ defineExpose({ open, close });
   <TeleportWithDirection to="body">
     <dialog
       ref="dialogRef"
-      class="w-full transition-all duration-300 ease-in-out shadow-xl rounded-xl"
+      class="w-full transition-all duration-300 ease-in-out shadow-xl rounded-xl backdrop:bg-black/75 backdrop:backdrop-blur-sm"
       :class="[
         maxWidthClass,
         positionClass,
@@ -141,7 +145,10 @@ defineExpose({ open, close });
       <OnClickOutside @trigger="handleClickOutside">
         <form
           ref="dialogContentRef"
-          class="flex flex-col w-full h-auto gap-6 p-6 overflow-visible text-start align-middle transition-all duration-300 ease-in-out transform bg-n-alpha-3 backdrop-blur-[100px] shadow-xl rounded-xl"
+          class="flex flex-col w-full gap-6 p-6 overflow-visible text-start align-middle transition-all duration-300 ease-in-out transform bg-n-alpha-3 backdrop-blur-[100px] shadow-xl"
+          :class="
+            width === 'panel' ? 'h-screen rounded-none' : 'h-auto rounded-xl'
+          "
           @submit.prevent="confirm"
           @click.stop
         >

@@ -63,20 +63,34 @@ class Integrations::Nerk::Client
     }
   end
 
-  def products(query:)
-    response = get('/api/v1/products', query: query, status: 'active', limit: 10)
+  def products(query: nil)
+    response = get('/api/v1/products', query: query.presence, status: 'active', limit: 60)
     Array(response['data']).map { |product| present_product(product) }
   end
 
   def promotions
     data = get('/api/v1/promotions')['data']
-    return [] unless data.is_a?(Hash)
+    return { 'coupons' => [], 'combos' => [] } unless data.is_a?(Hash)
 
-    Array(data['coupons']).filter_map { |coupon| present_available_coupon(coupon) }
+    {
+      'coupons' => Array(data['coupons']).filter_map { |coupon| present_available_coupon(coupon) },
+      'combos' => Array(data['combos']).filter_map { |combo| present_available_combo(combo) }
+    }
   end
 
   def carts(customer_id:)
     Array(get('/api/v1/carts', customer_id: customer_id, include_history: true, limit: 20)['data'])
+  end
+
+  def sync_lead(name:, email:, phone:)
+    data = request(:post, '/api/v1/customers', {
+      name: name,
+      email: email,
+      phone: phone
+    })['data']
+    raise ApiError, 'A NERK não retornou o cliente sincronizado.' unless data.is_a?(Hash)
+
+    data
   end
 
   def start_new_cart(customer_id:)
@@ -303,6 +317,33 @@ class Integrations::Nerk::Client
       'expires_at' => coupon['expiresAt'] || coupon['expires_at'],
       'staff_only' => coupon['staffOnly'] || coupon['staff_only'],
       'description' => coupon['description']
+    }
+  rescue ArgumentError
+    nil
+  end
+
+  def present_available_combo(combo)
+    return unless combo['active']
+    return if combo['usageLimit'] && combo['usedCount'].to_i >= combo['usageLimit'].to_i
+    return if combo['startsAt'].present? && Time.iso8601(combo['startsAt']) > Time.current
+    return if combo['endsAt'].present? && Time.iso8601(combo['endsAt']) <= Time.current
+
+    {
+      'id' => combo['id'],
+      'name' => combo['name'],
+      'description' => combo['description'],
+      'discount_type' => combo['discountType'],
+      'discount_value' => combo['discountValue'],
+      'items' => Array(combo['items']).filter_map do |item|
+        product = item['product']
+        next unless product.is_a?(Hash)
+
+        {
+          'required_quantity' => item['requiredQuantity'] || 1,
+          'variant_id' => item['variantId'],
+          'product' => present_product(product)
+        }
+      end
     }
   rescue ArgumentError
     nil
