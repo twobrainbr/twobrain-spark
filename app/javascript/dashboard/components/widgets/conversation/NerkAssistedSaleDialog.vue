@@ -74,7 +74,8 @@ const redeemedPointsBalance = ref(null);
 const redeemedWalletBalance = ref(null);
 let searchTimer;
 let saveTimer;
-let saveRevision = 0;
+let saveInFlight = false;
+let saveQueued = false;
 
 const clubEligible = computed(
   () => props.loyalty?.member && props.loyalty?.membership_status === 'active'
@@ -279,20 +280,19 @@ watch(query, value => {
   searchTimer = window.setTimeout(() => searchProducts(term), 300);
 });
 
-const saveCart = async () => {
-  if (!lines.value.length && !currentCartId.value) return;
-  saveRevision += 1;
-  const revision = saveRevision;
-  saving.value = true;
-  error.value = '';
+const persistQueuedCart = async () => {
+  if (!saveQueued) return;
+  saveQueued = false;
+  const snapshot = lines.value.map(line => ({
+    variant_id: line.variantId || line.variant_id,
+    quantity: line.quantity,
+    pricing_mode: line.pricingMode || line.pricing_mode || 'official',
+  }));
+  const snapshotSignature = JSON.stringify(snapshot);
   try {
     const response = await NerkAPI.createAssistedOrder(
       props.contactId,
-      lines.value.map(line => ({
-        variant_id: line.variantId || line.variant_id,
-        quantity: line.quantity,
-        pricing_mode: line.pricingMode || line.pricing_mode || 'official',
-      })),
+      snapshot,
       couponCode.value,
       currentCartId.value,
       {
@@ -301,22 +301,45 @@ const saveCart = async () => {
         discountCents: Number(shippingDiscountCents.value || 0),
       }
     );
-    if (revision !== saveRevision) return;
-    applyCart(response.data.assisted_order);
-    carts.value = [
-      response.data.assisted_order,
-      ...carts.value.filter(
-        cart => cart.id !== response.data.assisted_order.id
-      ),
-    ];
-    emit('saved');
-    emit('cartsUpdated');
+    const currentSignature = JSON.stringify(
+      lines.value.map(line => ({
+        variant_id: line.variantId || line.variant_id,
+        quantity: line.quantity,
+        pricing_mode: line.pricingMode || line.pricing_mode || 'official',
+      }))
+    );
+    if (!saveQueued && snapshotSignature === currentSignature) {
+      applyCart(response.data.assisted_order);
+      carts.value = [
+        response.data.assisted_order,
+        ...carts.value.filter(
+          cart => cart.id !== response.data.assisted_order.id
+        ),
+      ];
+      emit('saved');
+      emit('cartsUpdated');
+    }
   } catch (requestError) {
     error.value =
       requestError.response?.data?.error ||
       t('CONVERSATION_SIDEBAR.NERK.CART_SAVE_ERROR');
+  }
+  if (saveQueued) await persistQueuedCart();
+};
+
+const saveCart = async () => {
+  if (!lines.value.length && !currentCartId.value) return;
+  saveQueued = true;
+  if (saveInFlight) return;
+
+  saveInFlight = true;
+  saving.value = true;
+  error.value = '';
+  try {
+    await persistQueuedCart();
   } finally {
-    if (revision === saveRevision) saving.value = false;
+    saveInFlight = false;
+    saving.value = false;
   }
 };
 
@@ -417,6 +440,7 @@ const setCartPricingMode = async mode => {
 };
 
 const resetCart = () => {
+  saveQueued = false;
   currentCartId.value = null;
   lines.value = [];
   quote.value = null;
@@ -524,7 +548,7 @@ const open = async cartId => {
 
 const closePanel = () => {
   window.clearTimeout(saveTimer);
-  if (lines.value.length) saveCart();
+  if (currentCartId.value) saveCart();
   dialog.value?.close();
 };
 
