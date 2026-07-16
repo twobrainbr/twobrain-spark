@@ -59,6 +59,10 @@ const props = defineProps({
     default: 'center',
     validator: value => ['center', 'top'].includes(value),
   },
+  preventClose: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['confirm', 'close']);
@@ -105,8 +109,13 @@ const handleDialogClose = e => e.target === dialogRef.value && close();
 // Only close on click-outside if this dialog is the topmost one.
 // If another dialog (e.g. ProseMirror prompt) is open on top, ignore.
 const handleClickOutside = () => {
+  if (props.preventClose) return;
   const dialogs = document.querySelectorAll('dialog[open]');
   if (dialogs[dialogs.length - 1] === dialogRef.value) close();
+};
+
+const handleCancel = event => {
+  if (props.preventClose) event.preventDefault();
 };
 
 const confirm = () => {
@@ -127,6 +136,7 @@ defineExpose({ open, close });
         overflowYAuto ? 'overflow-y-auto' : 'overflow-visible',
       ]"
       @close.prevent="handleDialogClose"
+      @cancel="handleCancel"
     >
       <OnClickOutside @trigger="handleClickOutside">
         <form

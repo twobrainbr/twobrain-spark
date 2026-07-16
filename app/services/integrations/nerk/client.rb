@@ -76,7 +76,7 @@ class Integrations::Nerk::Client
   end
 
   def carts(customer_id:)
-    Array(get('/api/v1/carts', customer_id: customer_id, limit: 20)['data'])
+    Array(get('/api/v1/carts', customer_id: customer_id, include_history: true, limit: 20)['data'])
   end
 
   def start_new_cart(customer_id:)
