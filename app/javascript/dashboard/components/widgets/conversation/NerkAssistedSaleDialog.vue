@@ -2115,354 +2115,341 @@ defineExpose({ open });
       </div>
     </div>
 
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition-opacity duration-200"
-        enter-from-class="opacity-0"
-        leave-active-class="transition-opacity duration-150"
-        leave-to-class="opacity-0"
+    <Transition
+      enter-active-class="transition-opacity duration-200"
+      enter-from-class="opacity-0"
+      leave-active-class="transition-opacity duration-150"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="productPreview"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 p-3 backdrop-blur-sm sm:p-6"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="t('CONVERSATION_SIDEBAR.NERK.PRODUCT_DETAILS')"
+        @click.self="closeProductPreview"
       >
         <div
-          v-if="productPreview"
-          class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 p-3 backdrop-blur-sm sm:p-6"
-          role="dialog"
-          aria-modal="true"
-          :aria-label="t('CONVERSATION_SIDEBAR.NERK.PRODUCT_DETAILS')"
-          @click.self="closeProductPreview"
+          class="flex max-h-[min(88vh,52rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-n-solid-1 shadow-2xl transition"
         >
-          <div
-            class="flex max-h-[min(88vh,52rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-n-solid-1 shadow-2xl transition"
+          <header
+            class="flex shrink-0 items-center justify-between gap-3 border-b border-n-weak px-4 py-3 sm:px-5"
           >
-            <header
-              class="flex shrink-0 items-center justify-between gap-3 border-b border-n-weak px-4 py-3 sm:px-5"
-            >
-              <div class="min-w-0">
-                <p
-                  class="text-[10px] uppercase tracking-[0.16em] text-n-slate-9"
-                >
-                  {{ productTaxonomy(productPreview) }}
-                </p>
-                <h3
-                  class="nerk-display truncate text-lg font-semibold text-n-slate-12 sm:text-xl"
-                >
-                  {{ productPreview.name }}
-                </h3>
-              </div>
-              <button
-                type="button"
-                class="flex size-9 shrink-0 items-center justify-center rounded-full border border-n-weak text-n-slate-11 transition hover:rotate-90 hover:bg-n-alpha-2 hover:text-n-slate-12"
-                :aria-label="t('CONVERSATION_SIDEBAR.NERK.CLOSE')"
-                @click="closeProductPreview"
+            <div class="min-w-0">
+              <p class="text-[10px] uppercase tracking-[0.16em] text-n-slate-9">
+                {{ productTaxonomy(productPreview) }}
+              </p>
+              <h3
+                class="nerk-display truncate text-lg font-semibold text-n-slate-12 sm:text-xl"
               >
-                <span class="i-lucide-x size-4" />
-              </button>
-            </header>
-
-            <div
-              class="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] lg:overflow-hidden"
+                {{ productPreview.name }}
+              </h3>
+            </div>
+            <button
+              type="button"
+              class="flex size-9 shrink-0 items-center justify-center rounded-full border border-n-weak text-n-slate-11 transition hover:rotate-90 hover:bg-n-alpha-2 hover:text-n-slate-12"
+              :aria-label="t('CONVERSATION_SIDEBAR.NERK.CLOSE')"
+              @click="closeProductPreview"
             >
-              <section
-                class="min-h-0 border-b border-n-weak p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r sm:p-5"
+              <span class="i-lucide-x size-4" />
+            </button>
+          </header>
+
+          <div
+            class="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] lg:overflow-hidden"
+          >
+            <section
+              class="min-h-0 border-b border-n-weak p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r sm:p-5"
+            >
+              <div
+                class="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-xl bg-n-alpha-2"
               >
-                <div
-                  class="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-xl bg-n-alpha-2"
-                >
-                  <Spinner v-if="loadingProductPreview" size="24" />
-                  <img
-                    v-else-if="productPreviewImages.length"
-                    :src="productPreviewImages[productPreviewImageIndex]?.url"
-                    :alt="
-                      productPreviewImages[productPreviewImageIndex]?.alt ||
-                      productPreview.name
-                    "
-                    class="size-full object-contain transition duration-300"
-                  />
-                  <span
-                    v-else
-                    class="i-lucide-image-off size-8 text-n-slate-8"
-                  />
-                  <template v-if="productPreviewImages.length > 1">
-                    <button
-                      type="button"
-                      class="absolute left-3 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:scale-105"
-                      :aria-label="
-                        t('CONVERSATION_SIDEBAR.NERK.PREVIOUS_IMAGE')
-                      "
-                      @click="
-                        productPreviewImageIndex =
-                          (productPreviewImageIndex -
-                            1 +
-                            productPreviewImages.length) %
-                          productPreviewImages.length
-                      "
-                    >
-                      <span class="i-lucide-chevron-left size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      class="absolute right-3 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:scale-105"
-                      :aria-label="t('CONVERSATION_SIDEBAR.NERK.NEXT_IMAGE')"
-                      @click="
-                        productPreviewImageIndex =
-                          (productPreviewImageIndex + 1) %
-                          productPreviewImages.length
-                      "
-                    >
-                      <span class="i-lucide-chevron-right size-4" />
-                    </button>
-                  </template>
-                </div>
-                <div
-                  v-if="productPreviewImages.length > 1"
-                  class="mt-3 flex gap-2 overflow-x-auto pb-1"
-                >
-                  <button
-                    v-for="(image, index) in productPreviewImages"
-                    :key="image.url"
-                    type="button"
-                    class="size-12 shrink-0 overflow-hidden rounded-lg border-2 transition"
-                    :class="
-                      index === productPreviewImageIndex
-                        ? 'border-n-slate-12'
-                        : 'border-transparent opacity-65 hover:opacity-100'
-                    "
-                    @click="productPreviewImageIndex = index"
-                  >
-                    <img
-                      :src="image.url"
-                      :alt="image.alt || productPreview.name"
-                      class="size-full object-cover"
-                    />
-                  </button>
-                </div>
-
-                <div class="mt-5">
-                  <h4
-                    class="nerk-display text-base font-semibold text-n-slate-12"
-                  >
-                    {{ t('CONVERSATION_SIDEBAR.NERK.DESCRIPTION') }}
-                  </h4>
-                  <p
-                    class="mt-2 whitespace-pre-line text-sm leading-6 text-n-slate-11"
-                  >
-                    {{
-                      productPreview.description ||
-                      t('CONVERSATION_SIDEBAR.NERK.NO_DESCRIPTION')
-                    }}
-                  </p>
-                </div>
-                <div v-if="productPreview.specifications?.length" class="mt-5">
-                  <h4
-                    class="nerk-display text-base font-semibold text-n-slate-12"
-                  >
-                    {{ t('CONVERSATION_SIDEBAR.NERK.TECHNICAL_SHEET') }}
-                  </h4>
-                  <dl class="mt-2 grid gap-1.5 sm:grid-cols-2">
-                    <div
-                      v-for="spec in productPreview.specifications"
-                      :key="`${spec.label}-${spec.value}`"
-                      class="rounded-lg bg-n-alpha-2 px-3 py-2"
-                    >
-                      <dt
-                        class="text-[10px] uppercase tracking-wide text-n-slate-9"
-                      >
-                        {{ spec.label }}
-                      </dt>
-                      <dd class="mt-0.5 text-xs font-medium text-n-slate-12">
-                        {{ spec.value }}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-              </section>
-
-              <aside class="min-h-0 p-4 lg:overflow-y-auto sm:p-5">
-                <div
-                  v-if="productPreview.rating"
-                  class="flex items-center gap-2 text-sm text-n-slate-12"
-                >
-                  <span class="i-lucide-star size-4 fill-current" />
-                  <strong>{{ productPreview.rating.average || '—' }}</strong>
-                  <span class="text-n-slate-9">
-                    {{
-                      t('CONVERSATION_SIDEBAR.NERK.REVIEWS_COUNT', {
-                        count: productPreview.rating.count,
-                      })
-                    }}
-                  </span>
-                </div>
-
-                <label
-                  class="mt-4 block text-[11px] font-medium text-n-slate-11"
-                >
-                  {{ t('CONVERSATION_SIDEBAR.NERK.SELECT_VARIANT') }}
-                </label>
-                <ComboBox
-                  class="mt-1"
-                  :model-value="productPreviewVariantId"
-                  :options="variantOptions(productPreview)"
-                  :clearable="false"
-                  active-color="slate"
-                  :search-placeholder="
-                    t('CONVERSATION_SIDEBAR.NERK.SEARCH_VARIANT')
+                <Spinner v-if="loadingProductPreview" size="24" />
+                <img
+                  v-else-if="productPreviewImages.length"
+                  :src="productPreviewImages[productPreviewImageIndex]?.url"
+                  :alt="
+                    productPreviewImages[productPreviewImageIndex]?.alt ||
+                    productPreview.name
                   "
-                  @update:model-value="selectProductPreviewVariant"
+                  class="size-full object-contain transition duration-300"
                 />
-
-                <div
-                  v-if="productPreviewVariant"
-                  class="mt-4 rounded-xl border border-n-weak bg-n-alpha-2 p-4"
+                <span v-else class="i-lucide-image-off size-8 text-n-slate-8" />
+                <template v-if="productPreviewImages.length > 1">
+                  <button
+                    type="button"
+                    class="absolute left-3 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:scale-105"
+                    :aria-label="t('CONVERSATION_SIDEBAR.NERK.PREVIOUS_IMAGE')"
+                    @click="
+                      productPreviewImageIndex =
+                        (productPreviewImageIndex -
+                          1 +
+                          productPreviewImages.length) %
+                        productPreviewImages.length
+                    "
+                  >
+                    <span class="i-lucide-chevron-left size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    class="absolute right-3 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:scale-105"
+                    :aria-label="t('CONVERSATION_SIDEBAR.NERK.NEXT_IMAGE')"
+                    @click="
+                      productPreviewImageIndex =
+                        (productPreviewImageIndex + 1) %
+                        productPreviewImages.length
+                    "
+                  >
+                    <span class="i-lucide-chevron-right size-4" />
+                  </button>
+                </template>
+              </div>
+              <div
+                v-if="productPreviewImages.length > 1"
+                class="mt-3 flex gap-2 overflow-x-auto pb-1"
+              >
+                <button
+                  v-for="(image, index) in productPreviewImages"
+                  :key="image.url"
+                  type="button"
+                  class="size-12 shrink-0 overflow-hidden rounded-lg border-2 transition"
+                  :class="
+                    index === productPreviewImageIndex
+                      ? 'border-n-slate-12'
+                      : 'border-transparent opacity-65 hover:opacity-100'
+                  "
+                  @click="productPreviewImageIndex = index"
                 >
-                  <div class="flex items-start justify-between gap-3">
-                    <div>
-                      <p class="text-xs text-n-slate-10">
-                        {{ variantAttributes(productPreviewVariant) }}
+                  <img
+                    :src="image.url"
+                    :alt="image.alt || productPreview.name"
+                    class="size-full object-cover"
+                  />
+                </button>
+              </div>
+
+              <div class="mt-5">
+                <h4
+                  class="nerk-display text-base font-semibold text-n-slate-12"
+                >
+                  {{ t('CONVERSATION_SIDEBAR.NERK.DESCRIPTION') }}
+                </h4>
+                <p
+                  class="mt-2 whitespace-pre-line text-sm leading-6 text-n-slate-11"
+                >
+                  {{
+                    productPreview.description ||
+                    t('CONVERSATION_SIDEBAR.NERK.NO_DESCRIPTION')
+                  }}
+                </p>
+              </div>
+              <div v-if="productPreview.specifications?.length" class="mt-5">
+                <h4
+                  class="nerk-display text-base font-semibold text-n-slate-12"
+                >
+                  {{ t('CONVERSATION_SIDEBAR.NERK.TECHNICAL_SHEET') }}
+                </h4>
+                <dl class="mt-2 grid gap-1.5 sm:grid-cols-2">
+                  <div
+                    v-for="spec in productPreview.specifications"
+                    :key="`${spec.label}-${spec.value}`"
+                    class="rounded-lg bg-n-alpha-2 px-3 py-2"
+                  >
+                    <dt
+                      class="text-[10px] uppercase tracking-wide text-n-slate-9"
+                    >
+                      {{ spec.label }}
+                    </dt>
+                    <dd class="mt-0.5 text-xs font-medium text-n-slate-12">
+                      {{ spec.value }}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </section>
+
+            <aside class="min-h-0 p-4 lg:overflow-y-auto sm:p-5">
+              <div
+                v-if="productPreview.rating"
+                class="flex items-center gap-2 text-sm text-n-slate-12"
+              >
+                <span class="i-lucide-star size-4 fill-current" />
+                <strong>{{ productPreview.rating.average || '—' }}</strong>
+                <span class="text-n-slate-9">
+                  {{
+                    t('CONVERSATION_SIDEBAR.NERK.REVIEWS_COUNT', {
+                      count: productPreview.rating.count,
+                    })
+                  }}
+                </span>
+              </div>
+
+              <label class="mt-4 block text-[11px] font-medium text-n-slate-11">
+                {{ t('CONVERSATION_SIDEBAR.NERK.SELECT_VARIANT') }}
+              </label>
+              <ComboBox
+                class="mt-1"
+                :model-value="productPreviewVariantId"
+                :options="variantOptions(productPreview)"
+                :clearable="false"
+                active-color="slate"
+                :search-placeholder="
+                  t('CONVERSATION_SIDEBAR.NERK.SEARCH_VARIANT')
+                "
+                @update:model-value="selectProductPreviewVariant"
+              />
+
+              <div
+                v-if="productPreviewVariant"
+                class="mt-4 rounded-xl border border-n-weak bg-n-alpha-2 p-4"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p class="text-xs text-n-slate-10">
+                      {{ variantAttributes(productPreviewVariant) }}
+                    </p>
+                    <p class="mt-1 text-[11px] text-n-slate-9">
+                      {{
+                        t('CONVERSATION_SIDEBAR.NERK.SKU_VALUE', {
+                          sku: productPreviewVariant.sku,
+                        })
+                      }}
+                    </p>
+                  </div>
+                  <div class="text-right">
+                    <p
+                      class="nerk-display text-xl font-semibold text-n-slate-12"
+                    >
+                      {{
+                        formatCurrency(productPreviewVariant.offer_price_cents)
+                      }}
+                    </p>
+                    <p
+                      v-if="clubEligible"
+                      class="nerk-display text-sm font-semibold text-[#167A3B]"
+                    >
+                      {{
+                        formatCurrency(productPreviewVariant.club_price_cents)
+                      }}
+                      {{ t('CONVERSATION_SIDEBAR.NERK.CLUB_PRICE') }}
+                    </p>
+                  </div>
+                </div>
+                <dl class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div class="rounded-lg bg-n-solid-1 p-2">
+                    <dt class="text-[9px] uppercase text-n-slate-9">
+                      {{ t('CONVERSATION_SIDEBAR.NERK.STOCK') }}
+                    </dt>
+                    <dd class="mt-0.5 font-medium text-n-slate-12">
+                      {{ productPreviewVariant.stock }}
+                    </dd>
+                  </div>
+                  <div class="rounded-lg bg-n-solid-1 p-2">
+                    <dt class="text-[9px] uppercase text-n-slate-9">
+                      {{ t('CONVERSATION_SIDEBAR.NERK.WEIGHT') }}
+                    </dt>
+                    <dd class="mt-0.5 font-medium text-n-slate-12">
+                      {{
+                        productPreviewVariant.weight_grams
+                          ? `${productPreviewVariant.weight_grams} g`
+                          : '—'
+                      }}
+                    </dd>
+                  </div>
+                  <div
+                    v-if="productPreviewDimensions"
+                    class="col-span-2 rounded-lg bg-n-solid-1 p-2"
+                  >
+                    <dt class="text-[9px] uppercase text-n-slate-9">
+                      {{ t('CONVERSATION_SIDEBAR.NERK.DIMENSIONS') }}
+                    </dt>
+                    <dd class="mt-0.5 font-medium text-n-slate-12">
+                      {{ productPreviewDimensions }}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div v-if="productPreview.reviews?.length" class="mt-5">
+                <h4
+                  class="nerk-display text-base font-semibold text-n-slate-12"
+                >
+                  {{ t('CONVERSATION_SIDEBAR.NERK.RECENT_REVIEWS') }}
+                </h4>
+                <div class="mt-2 space-y-2">
+                  <article
+                    v-for="review in productPreview.reviews.slice(0, 3)"
+                    :key="review.id"
+                    class="rounded-lg border border-n-weak p-3"
+                  >
+                    <div class="flex items-center justify-between gap-2">
+                      <p class="text-xs font-medium text-n-slate-12">
+                        {{ review.authorName }}
                       </p>
-                      <p class="mt-1 text-[11px] text-n-slate-9">
+                      <span class="text-[10px] text-n-slate-10">
                         {{
-                          t('CONVERSATION_SIDEBAR.NERK.SKU_VALUE', {
-                            sku: productPreviewVariant.sku,
+                          t('CONVERSATION_SIDEBAR.NERK.RATING_SCORE', {
+                            rating: review.rating,
                           })
                         }}
-                      </p>
+                      </span>
                     </div>
-                    <div class="text-right">
-                      <p
-                        class="nerk-display text-xl font-semibold text-n-slate-12"
-                      >
-                        {{
-                          formatCurrency(
-                            productPreviewVariant.offer_price_cents
-                          )
-                        }}
-                      </p>
-                      <p
-                        v-if="clubEligible"
-                        class="nerk-display text-sm font-semibold text-[#167A3B]"
-                      >
-                        {{
-                          formatCurrency(productPreviewVariant.club_price_cents)
-                        }}
-                        {{ t('CONVERSATION_SIDEBAR.NERK.CLUB_PRICE') }}
-                      </p>
-                    </div>
-                  </div>
-                  <dl class="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div class="rounded-lg bg-n-solid-1 p-2">
-                      <dt class="text-[9px] uppercase text-n-slate-9">
-                        {{ t('CONVERSATION_SIDEBAR.NERK.STOCK') }}
-                      </dt>
-                      <dd class="mt-0.5 font-medium text-n-slate-12">
-                        {{ productPreviewVariant.stock }}
-                      </dd>
-                    </div>
-                    <div class="rounded-lg bg-n-solid-1 p-2">
-                      <dt class="text-[9px] uppercase text-n-slate-9">
-                        {{ t('CONVERSATION_SIDEBAR.NERK.WEIGHT') }}
-                      </dt>
-                      <dd class="mt-0.5 font-medium text-n-slate-12">
-                        {{
-                          productPreviewVariant.weight_grams
-                            ? `${productPreviewVariant.weight_grams} g`
-                            : '—'
-                        }}
-                      </dd>
-                    </div>
-                    <div
-                      v-if="productPreviewDimensions"
-                      class="col-span-2 rounded-lg bg-n-solid-1 p-2"
+                    <p
+                      v-if="review.title"
+                      class="mt-1 text-xs font-medium text-n-slate-12"
                     >
-                      <dt class="text-[9px] uppercase text-n-slate-9">
-                        {{ t('CONVERSATION_SIDEBAR.NERK.DIMENSIONS') }}
-                      </dt>
-                      <dd class="mt-0.5 font-medium text-n-slate-12">
-                        {{ productPreviewDimensions }}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-
-                <div v-if="productPreview.reviews?.length" class="mt-5">
-                  <h4
-                    class="nerk-display text-base font-semibold text-n-slate-12"
-                  >
-                    {{ t('CONVERSATION_SIDEBAR.NERK.RECENT_REVIEWS') }}
-                  </h4>
-                  <div class="mt-2 space-y-2">
-                    <article
-                      v-for="review in productPreview.reviews.slice(0, 3)"
-                      :key="review.id"
-                      class="rounded-lg border border-n-weak p-3"
+                      {{ review.title }}
+                    </p>
+                    <p
+                      class="mt-1 line-clamp-3 text-xs leading-5 text-n-slate-10"
                     >
-                      <div class="flex items-center justify-between gap-2">
-                        <p class="text-xs font-medium text-n-slate-12">
-                          {{ review.authorName }}
-                        </p>
-                        <span class="text-[10px] text-n-slate-10">
-                          {{
-                            t('CONVERSATION_SIDEBAR.NERK.RATING_SCORE', {
-                              rating: review.rating,
-                            })
-                          }}
-                        </span>
-                      </div>
-                      <p
-                        v-if="review.title"
-                        class="mt-1 text-xs font-medium text-n-slate-12"
-                      >
-                        {{ review.title }}
-                      </p>
-                      <p
-                        class="mt-1 line-clamp-3 text-xs leading-5 text-n-slate-10"
-                      >
-                        {{ review.body }}
-                      </p>
-                    </article>
-                  </div>
+                      {{ review.body }}
+                    </p>
+                  </article>
                 </div>
-              </aside>
-            </div>
-
-            <footer
-              class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-n-weak bg-n-alpha-1 px-4 py-3 sm:px-5"
-            >
-              <button
-                v-if="productPreviewUrl"
-                type="button"
-                class="flex items-center gap-2 rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-xs font-medium text-n-slate-12 transition hover:bg-n-alpha-2"
-                @click="copyLink('product', productPreviewUrl)"
-              >
-                <span class="i-lucide-copy size-4" />
-                {{
-                  copied === 'product'
-                    ? t('CONVERSATION_SIDEBAR.NERK.COPIED')
-                    : t('CONVERSATION_SIDEBAR.NERK.COPY_PRODUCT_LINK')
-                }}
-              </button>
-              <a
-                v-if="productPreviewUrl"
-                :href="productPreviewUrl"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="flex items-center gap-2 rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-xs font-medium text-n-slate-12 transition hover:bg-n-alpha-2"
-              >
-                <span class="i-lucide-external-link size-4" />
-                {{ t('CONVERSATION_SIDEBAR.NERK.OPEN_PRODUCT') }}
-              </a>
-              <button
-                v-if="productPreviewVariant"
-                type="button"
-                class="flex items-center gap-2 rounded-lg bg-n-slate-12 px-4 py-2 text-xs font-medium text-white transition hover:-translate-y-0.5 hover:shadow-lg"
-                :disabled="saving || productPreviewVariant.stock < 1"
-                @click="addVariant(productPreview, productPreviewVariant)"
-              >
-                <span class="i-lucide-shopping-cart size-4" />
-                {{ t('CONVERSATION_SIDEBAR.NERK.ADD_TO_CART') }}
-              </button>
-            </footer>
+              </div>
+            </aside>
           </div>
+
+          <footer
+            class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-n-weak bg-n-alpha-1 px-4 py-3 sm:px-5"
+          >
+            <button
+              v-if="productPreviewUrl"
+              type="button"
+              class="flex items-center gap-2 rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-xs font-medium text-n-slate-12 transition hover:bg-n-alpha-2"
+              @click="copyLink('product', productPreviewUrl)"
+            >
+              <span class="i-lucide-copy size-4" />
+              {{
+                copied === 'product'
+                  ? t('CONVERSATION_SIDEBAR.NERK.COPIED')
+                  : t('CONVERSATION_SIDEBAR.NERK.COPY_PRODUCT_LINK')
+              }}
+            </button>
+            <a
+              v-if="productPreviewUrl"
+              :href="productPreviewUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-2 rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-xs font-medium text-n-slate-12 transition hover:bg-n-alpha-2"
+            >
+              <span class="i-lucide-external-link size-4" />
+              {{ t('CONVERSATION_SIDEBAR.NERK.OPEN_PRODUCT') }}
+            </a>
+            <button
+              v-if="productPreviewVariant"
+              type="button"
+              class="flex items-center gap-2 rounded-lg bg-n-slate-12 px-4 py-2 text-xs font-medium text-white transition hover:-translate-y-0.5 hover:shadow-lg"
+              :disabled="saving || productPreviewVariant.stock < 1"
+              @click="addVariant(productPreview, productPreviewVariant)"
+            >
+              <span class="i-lucide-shopping-cart size-4" />
+              {{ t('CONVERSATION_SIDEBAR.NERK.ADD_TO_CART') }}
+            </button>
+          </footer>
         </div>
-      </Transition>
-    </Teleport>
+      </div>
+    </Transition>
   </Dialog>
 </template>
