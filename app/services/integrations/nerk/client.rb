@@ -68,6 +68,13 @@ class Integrations::Nerk::Client
     Array(response['data']).map { |product| present_product(product) }
   end
 
+  def product(product_id:)
+    data = get("/api/v1/products/#{CGI.escape(product_id)}")['data']
+    raise ApiError, 'A NERK não retornou os detalhes do produto.' unless data.is_a?(Hash)
+
+    present_product(data)
+  end
+
   def promotions
     data = get('/api/v1/promotions')['data']
     return { 'coupons' => [], 'combos' => [] } unless data.is_a?(Hash)
@@ -312,11 +319,20 @@ class Integrations::Nerk::Client
       'brand' => product['brand']&.slice('name', 'slug'),
       'category' => product['category']&.slice('name', 'slug'),
       'images' => Array(product['images']).map { |image| image.slice('url', 'alt', 'isPrimary', 'is_primary') },
+      'specifications' => Array(product['specifications']).map { |spec| spec.slice('label', 'value', 'icon') },
+      'rating' => product['rating'],
+      'reviews' => Array(product['reviews']).map do |review|
+        review.slice('id', 'authorName', 'rating', 'title', 'body', 'createdAt', 'verifiedPurchase')
+      end,
       'variants' => Array(product['variants']).map do |variant|
-        variant.slice('id', 'name', 'sku', 'stock', 'active').merge(
+        variant.slice('id', 'name', 'sku', 'barcode', 'stock', 'active', 'url', 'options').merge(
           'price_cents' => variant['price_cents'] || variant['priceCents'],
           'offer_price_cents' => variant['offer_price_cents'] || variant['offerPriceCents'] || variant['price_cents'] || variant['priceCents'],
           'club_price_cents' => variant['club_price_cents'] || variant['clubPriceCents'],
+          'weight_grams' => variant['weight_grams'] || variant['weightGrams'],
+          'width_cm' => variant['width_cm'] || variant['widthCm'],
+          'height_cm' => variant['height_cm'] || variant['heightCm'],
+          'length_cm' => variant['length_cm'] || variant['lengthCm'],
           'promotion' => variant['promotion'],
           'attributes' => Array(variant['attributes']).map do |attribute|
             {

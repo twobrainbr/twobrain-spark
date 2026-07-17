@@ -24,6 +24,12 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
+  def product
+    render json: { product: client.product(product_id: params.require(:product_id)) }
+  rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   def carts
     customer_id = customer_context.dig('customer', 'id')
     render json: { carts: client.carts(customer_id: customer_id) }
