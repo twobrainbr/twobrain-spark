@@ -88,6 +88,7 @@ let saveTimer;
 let saveInFlight = false;
 let saveQueued = false;
 let localCartDirty = false;
+let confirmedCouponCode = '';
 let panelOpen = false;
 let remoteSyncTimer;
 let remoteSyncInFlight = false;
@@ -348,6 +349,7 @@ const applyCart = cart => {
       ? 'club'
       : 'official';
   couponCode.value = cart.quote?.coupon_code || '';
+  confirmedCouponCode = couponCode.value;
   const quotedAddressId = cart.quote?.shipping?.address_id;
   const quotedZip = cart.quote?.shipping?.zip?.replace(/\D/g, '');
   const resolvedAddress =
@@ -389,7 +391,10 @@ const loadCarts = async () => {
 
 const loadPromotions = async () => {
   try {
-    const response = await NerkAPI.getPromotions();
+    const response = await NerkAPI.getPromotions(
+      props.contactId,
+      currentCartId.value
+    );
     coupons.value = response.data.coupons || [];
     combos.value = response.data.combos || [];
   } catch {
@@ -440,6 +445,7 @@ const persistQueuedCart = async () => {
     shippingDiscountCents: Number(shippingDiscountCents.value || 0),
   };
   const snapshotSignature = JSON.stringify(snapshotState);
+  const previousCouponCode = confirmedCouponCode;
   try {
     const response = await NerkAPI.createAssistedOrder(
       props.contactId,
@@ -466,6 +472,14 @@ const persistQueuedCart = async () => {
     });
     if (!saveQueued && snapshotSignature === currentSignature) {
       applyCart(response.data.assisted_order);
+      await loadPromotions();
+      if (snapshotState.couponCode !== previousCouponCode) {
+        useAlert(
+          snapshotState.couponCode
+            ? t('CONVERSATION_SIDEBAR.NERK.COUPON_APPLIED')
+            : t('CONVERSATION_SIDEBAR.NERK.COUPON_REMOVED')
+        );
+      }
       carts.value = [
         response.data.assisted_order,
         ...carts.value.filter(
@@ -479,6 +493,11 @@ const persistQueuedCart = async () => {
     error.value =
       requestError.response?.data?.error ||
       t('CONVERSATION_SIDEBAR.NERK.CART_SAVE_ERROR');
+    if (snapshotState.couponCode !== confirmedCouponCode) {
+      couponCode.value = confirmedCouponCode;
+      useAlert(error.value);
+      await loadPromotions();
+    }
   }
   if (saveQueued) await persistQueuedCart();
 };
@@ -628,11 +647,6 @@ const selectShippingService = serviceId => {
 const selectCoupon = code => {
   couponCode.value = code;
   scheduleCartSave();
-  useAlert(
-    code
-      ? t('CONVERSATION_SIDEBAR.NERK.COUPON_APPLIED')
-      : t('CONVERSATION_SIDEBAR.NERK.COUPON_REMOVED')
-  );
 };
 
 const openProductPreview = async product => {
@@ -707,6 +721,7 @@ const resetCart = () => {
   paymentUrl.value = '';
   backofficeUrl.value = '';
   couponCode.value = '';
+  confirmedCouponCode = '';
   selectedAddressId.value = customerAddresses.value[0]?.id || '';
   shippingZip.value = customerAddresses.value[0]?.zip || '';
   shippingServiceId.value = '';
@@ -725,9 +740,7 @@ const selectCart = async cart => {
   applyCart(cart);
   flowStep.value = 'pdv';
   await Promise.all([
-    coupons.value.length || combos.value.length
-      ? Promise.resolve()
-      : loadPromotions(),
+    loadPromotions(),
     products.value.length
       ? Promise.resolve()
       : searchProducts(query.value.trim()),

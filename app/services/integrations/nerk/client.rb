@@ -75,8 +75,12 @@ class Integrations::Nerk::Client
     present_product(data)
   end
 
-  def promotions
-    data = get('/api/v1/promotions')['data']
+  def promotions(customer_id: nil, cart_id: nil)
+    data = get(
+      '/api/v1/promotions',
+      customer_id: customer_id.presence,
+      cart_id: cart_id.presence
+    )['data']
     return { 'coupons' => [], 'combos' => [] } unless data.is_a?(Hash)
 
     {

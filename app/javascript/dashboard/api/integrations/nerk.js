@@ -45,8 +45,10 @@ class NerkAPI extends ApiClient {
     return axios.post(`${this.url}/new_cart`, { contact_id: contactId });
   }
 
-  getPromotions() {
-    return axios.get(`${this.url}/promotions`);
+  getPromotions(contactId, cartId) {
+    return axios.get(`${this.url}/promotions`, {
+      params: { contact_id: contactId, cart_id: cartId },
+    });
   }
 
   getTracking(contactId, orderNumber) {
