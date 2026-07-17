@@ -1774,7 +1774,7 @@ defineExpose({ open });
                   type="text"
                   inputmode="decimal"
                   :disabled="!selectedAddress || saving || !lines.length"
-                  class="nerk-display w-24 shrink-0 rounded-md border border-n-weak bg-n-alpha-1 px-2 py-1.5 text-right text-xs text-n-slate-12"
+                  class="nerk-display !h-8 !w-24 shrink-0 rounded-md border border-n-weak bg-n-alpha-1 px-2 !py-1 text-right text-xs text-n-slate-12"
                   @focus="editShippingDiscount"
                   @blur="commitShippingDiscount"
                   @keydown.enter.prevent="$event.target.blur()"
