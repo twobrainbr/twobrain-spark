@@ -82,6 +82,10 @@ class Integrations::Nerk::Client
     Array(get('/api/v1/carts', customer_id: customer_id, include_history: true, limit: 20)['data'])
   end
 
+  def cart(cart_id:)
+    get("/api/v1/carts/#{CGI.escape(cart_id)}")['data']
+  end
+
   def sync_lead(name:, email:, phone:)
     data = request(:post, '/api/v1/customers', {
       name: name,
