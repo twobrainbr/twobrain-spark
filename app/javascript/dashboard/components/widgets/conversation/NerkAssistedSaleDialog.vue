@@ -1494,16 +1494,18 @@ defineExpose({ open });
           </div>
 
           <div
-            class="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto overscroll-contain pr-2"
+            class="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto overscroll-contain pr-2 xl:grid-cols-2"
           >
             <article
               v-for="combo in visibleCombos"
               :key="`combo-${combo.id}`"
-              class="rounded-xl border-2 border-n-slate-12 bg-n-solid-1 p-3"
+              class="group flex min-h-40 flex-col rounded-xl border-2 border-n-slate-12 bg-n-solid-1 p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-lg"
             >
-              <div class="flex items-start gap-3">
+              <div
+                class="grid grid-cols-[3.75rem_minmax(0,1fr)_auto] items-start gap-3"
+              >
                 <span
-                  class="grid size-20 shrink-0 grid-cols-2 gap-0.5 overflow-hidden rounded-lg bg-n-alpha-2 p-0.5"
+                  class="grid size-15 shrink-0 grid-cols-2 gap-0.5 overflow-hidden rounded-lg bg-n-alpha-2 p-0.5"
                 >
                   <img
                     v-for="(image, index) in comboImages(combo)"
@@ -1519,40 +1521,59 @@ defineExpose({ open });
                   />
                 </span>
                 <div class="min-w-0 flex-1">
-                  <span
-                    class="inline-flex rounded-full bg-n-slate-12 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white"
-                  >
-                    {{ t('CONVERSATION_SIDEBAR.NERK.FILTER_COMBOS') }}
-                  </span>
                   <h4
-                    class="nerk-display mt-2 line-clamp-2 text-base font-semibold leading-tight text-n-slate-12"
+                    class="nerk-display line-clamp-2 text-sm font-semibold leading-tight text-n-slate-12"
                   >
                     {{ combo.name }}
                   </h4>
-                  <p class="mt-1 line-clamp-2 text-xs text-n-slate-10">
+                  <p
+                    class="mt-1 line-clamp-2 text-[11px] leading-snug text-n-slate-10"
+                  >
                     {{ combo.description }}
                   </p>
                 </div>
+                <span
+                  class="inline-flex rounded-full bg-n-slate-12 px-2 py-1 text-[8px] font-semibold uppercase tracking-wider text-white"
+                >
+                  {{ t('CONVERSATION_SIDEBAR.NERK.FILTER_COMBOS') }}
+                </span>
               </div>
-              <button
-                type="button"
-                class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-n-slate-12 px-3 py-2 text-xs font-medium text-white"
-                :disabled="saving"
-                @click="addCombo(combo)"
-              >
-                <span class="i-lucide-plus size-4" />
-                {{ t('CONVERSATION_SIDEBAR.NERK.ADD_COMBO') }}
-              </button>
+              <div class="mt-auto flex items-end justify-between gap-3 pt-3">
+                <div class="flex min-w-0 -space-x-1.5">
+                  <span
+                    v-for="item in (combo.items || []).slice(0, 3)"
+                    :key="item.id || item.product?.id"
+                    class="grid size-7 place-items-center overflow-hidden rounded-full border-2 border-white bg-n-alpha-2"
+                  >
+                    <img
+                      :src="productImage(item.product || {})"
+                      :alt="item.product?.name || combo.name"
+                      class="size-full object-cover"
+                    />
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  class="flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-n-slate-12 px-3 text-[11px] font-medium text-white transition hover:bg-black"
+                  :disabled="saving"
+                  @click="addCombo(combo)"
+                >
+                  <span class="i-lucide-plus size-3.5" />
+                  {{ t('CONVERSATION_SIDEBAR.NERK.ADD_COMBO') }}
+                </button>
+              </div>
             </article>
             <article
               v-for="product in visibleProducts"
               :key="product.id"
-              class="group rounded-xl border border-n-weak bg-n-solid-1 p-2.5 transition duration-200 hover:-translate-y-0.5 hover:border-n-brand hover:shadow-lg"
+              class="group flex min-h-40 flex-col rounded-xl border border-n-weak bg-n-solid-1 p-3 transition duration-200 hover:-translate-y-0.5 hover:border-n-slate-12 hover:shadow-lg"
             >
-              <div class="flex gap-3">
+              <div
+                class="grid grid-cols-[3.75rem_minmax(0,1fr)_auto] items-start gap-3"
+              >
                 <button
                   type="button"
-                  class="relative size-14 shrink-0 overflow-hidden rounded-lg border border-n-weak"
+                  class="relative size-15 shrink-0 overflow-hidden rounded-lg border border-n-weak"
                   :aria-label="
                     t('CONVERSATION_SIDEBAR.NERK.VIEW_PRODUCT_DETAILS')
                   "
@@ -1572,21 +1593,37 @@ defineExpose({ open });
                 <div class="min-w-0 flex-1">
                   <button
                     type="button"
-                    class="nerk-display line-clamp-2 text-left text-base font-semibold leading-tight text-n-slate-12 hover:underline"
+                    class="nerk-display line-clamp-2 text-left text-sm font-semibold leading-tight text-n-slate-12 hover:underline"
                     @click="openProductPreview(product)"
                   >
                     {{ product.name }}
                   </button>
-                  <p class="text-xs text-n-slate-11">
+                  <p class="mt-1 truncate text-[11px] text-n-slate-10">
                     {{ productTaxonomy(product) }}
+                  </p>
+                </div>
+                <div v-if="selectedVariant(product)" class="text-right">
+                  <p
+                    class="nerk-display whitespace-nowrap text-sm font-semibold leading-none text-n-slate-12"
+                  >
+                    {{
+                      formatCurrency(selectedVariant(product).offer_price_cents)
+                    }}
+                  </p>
+                  <p class="mt-1 whitespace-nowrap text-[9px] text-n-slate-9">
+                    {{
+                      t('CONVERSATION_SIDEBAR.NERK.STOCK_COUNT', {
+                        count: selectedVariant(product).stock,
+                      })
+                    }}
                   </p>
                 </div>
               </div>
               <div
                 v-if="selectedVariant(product)"
-                class="mt-2 grid items-end gap-2 sm:grid-cols-[minmax(12rem,1fr)_auto]"
+                class="mt-auto flex items-end gap-2 pt-3"
               >
-                <div class="min-w-0">
+                <div class="min-w-0 flex-1">
                   <label
                     class="mb-1 block text-[9px] font-medium uppercase tracking-wide text-n-slate-9"
                   >
@@ -1608,27 +1645,7 @@ defineExpose({ open });
                     @update:model-value="selectVariant(product, $event)"
                   />
                 </div>
-                <div
-                  class="flex items-center justify-between gap-3 sm:justify-end"
-                >
-                  <div class="min-w-24 text-right">
-                    <p
-                      class="nerk-display text-sm font-semibold leading-none text-n-slate-12"
-                    >
-                      {{
-                        formatCurrency(
-                          selectedVariant(product).offer_price_cents
-                        )
-                      }}
-                    </p>
-                    <p class="mt-1 text-[9px] text-n-slate-9">
-                      {{
-                        t('CONVERSATION_SIDEBAR.NERK.STOCK_COUNT', {
-                          count: selectedVariant(product).stock,
-                        })
-                      }}
-                    </p>
-                  </div>
+                <div class="flex shrink-0 items-center">
                   <div
                     v-if="selectedVariantLine(product)"
                     class="flex h-8 items-center overflow-hidden rounded-lg border border-n-weak bg-n-alpha-2"
