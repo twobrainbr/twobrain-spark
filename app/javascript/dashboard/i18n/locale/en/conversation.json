@@ -493,6 +493,7 @@
       "ADD_TO_CART": "Adicionar ao carrinho",
       "PRODUCT_ADDED": "{name} foi adicionado ao carrinho",
       "COMBO_ADDED": "Combo {name} adicionado ao carrinho",
+      "COMBO_STOCK_LIMIT": "A quantidade do combo ultrapassa o estoque disponível de um dos produtos.",
       "VIEW_PRODUCT_DETAILS": "Ver detalhes do produto e da variação",
       "PRODUCT_DETAILS": "Detalhes do produto",
       "PRODUCT_DETAILS_ERROR": "Não foi possível carregar os detalhes do produto",

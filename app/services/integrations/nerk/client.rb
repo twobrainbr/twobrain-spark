@@ -389,6 +389,7 @@ class Integrations::Nerk::Client
 
         {
           'required_quantity' => item['requiredQuantity'] || 1,
+          'max_quantity' => item['maxQuantity'],
           'variant_id' => item['variantId'],
           'product' => present_product(product)
         }
