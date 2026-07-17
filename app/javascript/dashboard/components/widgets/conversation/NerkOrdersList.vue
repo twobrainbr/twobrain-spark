@@ -180,7 +180,9 @@ watch(
   { immediate: true }
 );
 onMounted(() => {
-  refreshTimer = window.setInterval(() => refreshWorkspace(true), 5000);
+  refreshTimer = window.setInterval(() => {
+    if (document.visibilityState === 'visible') refreshWorkspace(true);
+  }, 30000);
   window.addEventListener('focus', refreshWhenVisible);
   document.addEventListener('visibilitychange', refreshWhenVisible);
 });
