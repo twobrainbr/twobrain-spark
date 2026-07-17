@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import NerkAPI from 'dashboard/api/integrations/nerk';
@@ -82,6 +82,10 @@ let searchTimer;
 let saveTimer;
 let saveInFlight = false;
 let saveQueued = false;
+let localCartDirty = false;
+let panelOpen = false;
+let remoteSyncTimer;
+let remoteSyncInFlight = false;
 
 const clubEligible = computed(
   () => props.loyalty?.member && props.loyalty?.membership_status === 'active'
@@ -323,6 +327,7 @@ const applyCart = cart => {
   paymentUrl.value = cart.payment_url || '';
   backofficeUrl.value = cart.backoffice_url || '';
   lastSavedAt.value = cart.updated_at || new Date().toISOString();
+  localCartDirty = false;
 };
 
 const loadCarts = async () => {
@@ -454,6 +459,7 @@ const saveCart = async () => {
 };
 
 const scheduleCartSave = () => {
+  localCartDirty = true;
   window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(saveCart, 180);
 };
@@ -604,6 +610,7 @@ const commitShippingDiscount = event => {
 
 const resetCart = () => {
   saveQueued = false;
+  localCartDirty = false;
   currentCartId.value = null;
   lines.value = [];
   quote.value = null;
@@ -689,6 +696,7 @@ const redeemLoyalty = async () => {
 };
 
 const open = async cartId => {
+  panelOpen = true;
   resetCart();
   flowStep.value = 'carts';
   profileOpen.value = false;
@@ -717,10 +725,62 @@ const open = async cartId => {
 };
 
 const closePanel = () => {
+  panelOpen = false;
   window.clearTimeout(saveTimer);
   if (currentCartId.value) saveCart();
   dialog.value?.close();
 };
+
+const refreshActiveCart = async (force = false) => {
+  if (
+    !panelOpen ||
+    !currentCartId.value ||
+    localCartDirty ||
+    saving.value ||
+    saveInFlight ||
+    saveQueued ||
+    remoteSyncInFlight ||
+    (!force && document.visibilityState !== 'visible')
+  ) {
+    return;
+  }
+
+  remoteSyncInFlight = true;
+  try {
+    const response = await NerkAPI.getCart(
+      props.contactId,
+      currentCartId.value
+    );
+    const remoteCart = response.data.cart;
+    if (
+      remoteCart?.id === currentCartId.value &&
+      remoteCart.updated_at !== lastSavedAt.value
+    ) {
+      applyCart(remoteCart);
+      carts.value = [
+        remoteCart,
+        ...carts.value.filter(cart => cart.id !== remoteCart.id),
+      ];
+      emit('cartsUpdated');
+    }
+  } catch {
+    // A transient reconciliation failure must not interrupt an assisted sale;
+    // the next visibility/focus/interval pass retries automatically.
+  } finally {
+    remoteSyncInFlight = false;
+  }
+};
+
+const refreshOnFocus = () => refreshActiveCart(true);
+const refreshOnVisibility = () => {
+  if (document.visibilityState === 'visible') refreshActiveCart(true);
+};
+
+onMounted(() => {
+  remoteSyncTimer = window.setInterval(refreshActiveCart, 3000);
+  window.addEventListener('focus', refreshOnFocus);
+  document.addEventListener('visibilitychange', refreshOnVisibility);
+});
 
 watch(
   () =>
@@ -760,6 +820,9 @@ watch(
 onBeforeUnmount(() => {
   window.clearTimeout(searchTimer);
   window.clearTimeout(saveTimer);
+  window.clearInterval(remoteSyncTimer);
+  window.removeEventListener('focus', refreshOnFocus);
+  document.removeEventListener('visibilitychange', refreshOnVisibility);
 });
 defineExpose({ open });
 </script>

@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseController
   before_action :ensure_nerk_enabled
-  before_action :validate_contact, only: [:context, :orders, :carts, :new_cart, :tracking, :assisted_order, :redeem_loyalty, :update_order, :complete_lead]
+  before_action :validate_contact, only: [:context, :orders, :carts, :cart, :new_cart, :tracking, :assisted_order, :redeem_loyalty, :update_order, :complete_lead]
 
   def context
     render json: { context: customer_context }
@@ -30,6 +30,20 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
   rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
     render json: { error: e.message }, status: :conflict
   rescue Integrations::Nerk::Client::ApiError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def cart
+    customer_id = customer_context.dig('customer', 'id')
+    cart = client.cart(cart_id: params.require(:cart_id))
+    if cart.blank? || cart['customer_id'] != customer_id
+      return render json: { error: 'Carrinho não encontrado para este contato.' }, status: :not_found
+    end
+
+    render json: { cart: cart }
+  rescue Integrations::Nerk::Client::IdentityVerificationRequired => e
+    render json: { error: e.message }, status: :conflict
+  rescue ActionController::ParameterMissing, Integrations::Nerk::Client::ApiError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 

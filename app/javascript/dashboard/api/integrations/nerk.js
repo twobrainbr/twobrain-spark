@@ -29,6 +29,12 @@ class NerkAPI extends ApiClient {
     });
   }
 
+  getCart(contactId, cartId) {
+    return axios.get(`${this.url}/cart`, {
+      params: { contact_id: contactId, cart_id: cartId },
+    });
+  }
+
   startNewCart(contactId) {
     return axios.post(`${this.url}/new_cart`, { contact_id: contactId });
   }
