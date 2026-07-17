@@ -95,7 +95,7 @@ class Api::V1::Accounts::Integrations::NerkController < Api::V1::Accounts::BaseC
 
     result = client.create_assisted_order(
       customer_id: customer_id,
-      lines: lines.map { |line| line.permit(:variant_id, :quantity, :pricing_mode).to_h },
+      lines: lines.map { |line| line.permit(:variant_id, :quantity, :pricing_mode, :combo_id).to_h },
       coupon_code: params[:coupon_code],
       cart_id: params[:cart_id],
       shipping_address_id: params[:shipping_address_id],

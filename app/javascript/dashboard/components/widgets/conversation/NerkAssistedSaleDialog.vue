@@ -436,6 +436,7 @@ const persistQueuedCart = async () => {
     variant_id: line.variantId || line.variant_id,
     quantity: line.quantity,
     pricing_mode: line.pricingMode || line.pricing_mode || 'official',
+    combo_id: line.comboId || line.combo_id || null,
   }));
   const snapshotState = {
     lines: snapshot,
@@ -464,6 +465,7 @@ const persistQueuedCart = async () => {
         variant_id: line.variantId || line.variant_id,
         quantity: line.quantity,
         pricing_mode: line.pricingMode || line.pricing_mode || 'official',
+        combo_id: line.comboId || line.combo_id || null,
       })),
       couponCode: couponCode.value,
       addressId: selectedAddressId.value,
@@ -524,7 +526,56 @@ const scheduleCartSave = () => {
   saveTimer = window.setTimeout(saveCart, 180);
 };
 
+const changeComboQuantity = async (line, delta) => {
+  const comboId = line.comboId || line.combo_id;
+  if (!comboId) return;
+  const group = lines.value.filter(
+    candidate => (candidate.comboId || candidate.combo_id) === comboId
+  );
+  const currentQuantity = Number(
+    line.comboQuantity || line.combo_quantity || 1
+  );
+  const nextQuantity = currentQuantity + delta;
+  if (nextQuantity < 1) {
+    lines.value = lines.value.filter(candidate => !group.includes(candidate));
+    scheduleCartSave();
+    return;
+  }
+
+  const nextLines = group.map(candidate => {
+    const required = Number(
+      candidate.comboRequiredQuantity || candidate.combo_required_quantity || 1
+    );
+    const configuredMax = Number(
+      candidate.comboMaxQuantity || candidate.combo_max_quantity || 0
+    );
+    const quantity = Math.min(
+      required * nextQuantity,
+      configuredMax > 0 ? configuredMax : Number.POSITIVE_INFINITY
+    );
+    return { candidate, quantity };
+  });
+  if (nextLines.some(({ candidate, quantity }) => quantity > candidate.stock)) {
+    error.value = t('CONVERSATION_SIDEBAR.NERK.COMBO_STOCK_LIMIT');
+    return;
+  }
+  nextLines.forEach(({ candidate, quantity }) => {
+    candidate.quantity = quantity;
+    candidate.comboQuantity = nextQuantity;
+    candidate.combo_quantity = nextQuantity;
+  });
+  scheduleCartSave();
+};
+
 const addCombo = async combo => {
+  const existingComboLine = lines.value.find(
+    line => (line.comboId || line.combo_id) === combo.id
+  );
+  if (existingComboLine) {
+    await changeComboQuantity(existingComboLine, 1);
+    useAlert(t('CONVERSATION_SIDEBAR.NERK.COMBO_ADDED', { name: combo.name }));
+    return;
+  }
   (combo.items || []).forEach(item => {
     const product = item.product;
     const variant =
@@ -534,8 +585,16 @@ const addCombo = async combo => {
     const existing = lines.value.find(
       line => (line.variantId || line.variant_id) === variant.id
     );
-    if (existing) existing.quantity += item.required_quantity || 1;
-    else {
+    const requiredQuantity = item.required_quantity || 1;
+    const maxQuantity = item.max_quantity || null;
+    const quantity = Math.min(requiredQuantity, maxQuantity || Infinity);
+    if (existing) {
+      existing.quantity = quantity;
+      existing.comboId = combo.id;
+      existing.comboQuantity = 1;
+      existing.comboRequiredQuantity = requiredQuantity;
+      existing.comboMaxQuantity = maxQuantity;
+    } else {
       lines.value.push({
         variantId: variant.id,
         productId: product.id,
@@ -544,7 +603,11 @@ const addCombo = async combo => {
         sku: variant.sku,
         imageUrl: variantImage(product, variant),
         stock: variant.stock,
-        quantity: item.required_quantity || 1,
+        quantity,
+        comboId: combo.id,
+        comboQuantity: 1,
+        comboRequiredQuantity: requiredQuantity,
+        comboMaxQuantity: maxQuantity,
         pricingMode: cartPricingMode.value,
         referencePriceCents: variant.price_cents,
         officialPriceCents: variant.offer_price_cents,
@@ -596,6 +659,10 @@ const addSelectedVariant = product => {
 };
 
 const changeQuantity = async (line, delta) => {
+  if (line.comboId || line.combo_id) {
+    await changeComboQuantity(line, delta);
+    return;
+  }
   const next = line.quantity + delta;
   if (next < 1) {
     lines.value = lines.value.filter(candidate => candidate !== line);
@@ -605,6 +672,14 @@ const changeQuantity = async (line, delta) => {
 };
 
 const removeLine = async line => {
+  const comboId = line.comboId || line.combo_id;
+  if (comboId) {
+    lines.value = lines.value.filter(
+      candidate => (candidate.comboId || candidate.combo_id) !== comboId
+    );
+    scheduleCartSave();
+    return;
+  }
   lines.value = lines.value.filter(candidate => candidate !== line);
   scheduleCartSave();
 };
