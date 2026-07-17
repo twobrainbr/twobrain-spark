@@ -109,6 +109,9 @@ const customerInitials = computed(() =>
     .toUpperCase()
 );
 const amounts = computed(() => quote.value?.amounts || {});
+const projectedClubPoints = computed(
+  () => quote.value?.club?.projected_points || 0
+);
 const customerAddresses = computed(() =>
   [...(props.customer?.addresses || [])].sort(
     (first, second) =>
@@ -812,15 +815,17 @@ defineExpose({ open });
           </button>
           <button
             type="button"
-            class="flex shrink-0 items-center gap-2 rounded-lg border border-n-slate-12 bg-n-slate-12 px-3 py-1.5 text-left text-white hover:opacity-90"
+            class="flex shrink-0 items-center gap-2 rounded-lg border border-[#86F2AE]/50 bg-[#0C0F0D] px-3 py-1.5 text-left text-white hover:border-[#86F2AE]"
             @click="profileOpen = true"
           >
-            <span class="i-lucide-sparkles size-4 text-white" />
+            <span class="i-lucide-sparkles size-4 text-[#86F2AE]" />
             <span>
               <span class="block text-[10px] text-white/70">{{
                 t('CONVERSATION_SIDEBAR.NERK.CLUB_POINTS')
               }}</span>
-              <span class="nerk-display block text-sm font-semibold text-white">
+              <span
+                class="nerk-display block text-sm font-semibold text-[#86F2AE]"
+              >
                 {{ pointsBalance }} · {{ formatCurrency(redeemableValue) }}
               </span>
             </span>
@@ -944,11 +949,15 @@ defineExpose({ open });
                   {{ t('CONVERSATION_SIDEBAR.NERK.WALLET_CHECKOUT_HELP') }}
                 </p>
               </div>
-              <div class="rounded-lg bg-n-slate-12 p-3 text-white">
+              <div
+                class="rounded-lg border border-[#86F2AE]/40 bg-[#0C0F0D] p-3 text-white"
+              >
                 <p class="text-[10px] uppercase tracking-wide text-white/65">
                   {{ t('CONVERSATION_SIDEBAR.NERK.CLUB_POINTS') }}
                 </p>
-                <p class="nerk-display mt-1 text-lg font-semibold text-white">
+                <p
+                  class="nerk-display mt-1 text-lg font-semibold text-[#86F2AE]"
+                >
                   {{ pointsBalance }}
                 </p>
                 <p class="text-[11px] text-white/70">
@@ -1347,7 +1356,7 @@ defineExpose({ open });
                         )
                       }}
                     </p>
-                    <p v-if="clubEligible" class="nerk-display text-n-slate-10">
+                    <p v-if="clubEligible" class="nerk-display text-[#0C0F0D]">
                       {{
                         formatCurrency(
                           selectedVariant(product).club_price_cents
@@ -1431,13 +1440,36 @@ defineExpose({ open });
                   {{ formatCurrency(amounts.estimated_total_cents) }}
                 </p>
               </div>
-              <p class="text-[10px] text-white/60">
-                {{
-                  t('CONVERSATION_SIDEBAR.NERK.CART_ITEMS_COUNT', {
-                    count: lines.length,
-                  })
-                }}
-              </p>
+              <div class="text-right">
+                <template v-if="clubEligible && projectedClubPoints">
+                  <p
+                    class="text-[9px] uppercase tracking-[0.14em] text-white/60"
+                  >
+                    {{ t('CONVERSATION_SIDEBAR.NERK.CLUB_REWARD') }}
+                  </p>
+                  <p
+                    class="nerk-display text-base font-semibold leading-none text-[#86F2AE]"
+                  >
+                    {{
+                      t('CONVERSATION_SIDEBAR.NERK.CLUB_REWARD_POINTS', {
+                        count: projectedClubPoints,
+                      })
+                    }}
+                  </p>
+                  <p class="mt-0.5 text-[9px] text-white/50">
+                    {{
+                      t('CONVERSATION_SIDEBAR.NERK.CLUB_REWARD_AFTER_PAYMENT')
+                    }}
+                  </p>
+                </template>
+                <p v-else class="text-[10px] text-white/60">
+                  {{
+                    t('CONVERSATION_SIDEBAR.NERK.CART_ITEMS_COUNT', {
+                      count: lines.length,
+                    })
+                  }}
+                </p>
+              </div>
             </div>
             <div
               v-if="cartUrl || paymentUrl || backofficeUrl"
@@ -1509,7 +1541,7 @@ defineExpose({ open });
                 class="rounded-md px-2 py-1.5 text-[11px] font-medium"
                 :class="
                   cartPricingMode === 'club'
-                    ? 'bg-n-slate-12 text-white shadow-sm'
+                    ? 'bg-[#0C0F0D] text-[#86F2AE] shadow-sm ring-1 ring-inset ring-[#86F2AE]/40'
                     : 'text-n-slate-11'
                 "
                 :disabled="!clubEligible || saving"
