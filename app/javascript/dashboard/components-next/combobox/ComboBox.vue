@@ -19,6 +19,8 @@ const props = defineProps({
   displayLabel: { type: String, default: '' },
   modelValue: { type: [String, Number], default: '' },
   disabled: { type: Boolean, default: false },
+  clearable: { type: Boolean, default: true },
+  activeColor: { type: String, default: 'blue' },
   searchPlaceholder: { type: String, default: '' },
   emptyState: { type: String, default: '' },
   message: { type: String, default: '' },
@@ -60,8 +62,10 @@ const selectedLabel = computed(() => {
 
 const selectOption = option => {
   if (selectedValue.value === option.value) {
-    selectedValue.value = '';
-    emit('update:modelValue', '');
+    if (props.clearable) {
+      selectedValue.value = '';
+      emit('update:modelValue', '');
+    }
   } else {
     selectedValue.value = option.value;
     emit('update:modelValue', option.value);
@@ -101,7 +105,7 @@ watch(
     <OnClickOutside @trigger="open = false">
       <Button
         variant="outline"
-        :color="hasError && !open ? 'ruby' : open ? 'blue' : 'slate'"
+        :color="hasError && !open ? 'ruby' : open ? activeColor : 'slate'"
         :label="selectedLabel"
         trailing-icon
         :disabled="disabled"

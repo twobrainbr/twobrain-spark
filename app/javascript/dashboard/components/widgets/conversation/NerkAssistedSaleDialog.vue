@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 
 import NerkAPI from 'dashboard/api/integrations/nerk';
 import Button from 'dashboard/components-next/button/Button.vue';
+import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 
@@ -59,6 +60,7 @@ const selectedAddressId = ref('');
 const shippingZip = ref('');
 const shippingServiceId = ref('');
 const shippingDiscountCents = ref(0);
+const shippingDiscountInput = ref('');
 const emailValidation = ref(null);
 const validatingEmail = ref(false);
 const cartPricingMode = ref('official');
@@ -117,6 +119,9 @@ const selectedAddress = computed(() =>
     address => address.id === selectedAddressId.value
   )
 );
+const shippingDiscountLimitCents = computed(
+  () => amounts.value.shipping_before_discount_cents || 0
+);
 const categories = computed(() => {
   const rows = products.value
     .map(product => product.category)
@@ -161,7 +166,7 @@ const missingProfile = computed(() => {
 });
 
 const formatCurrency = amount =>
-  new Intl.NumberFormat(undefined, {
+  new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
   }).format((amount || 0) / 100);
@@ -215,6 +220,14 @@ const shippingOptionLabel = option =>
   [option.carrier, option.service, formatCurrency(option.customerPriceCents)]
     .filter(Boolean)
     .join(' · ');
+const parseCurrencyInput = value => {
+  const normalized = String(value || '')
+    .replace(/[^\d,.-]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
+};
 const registrationUrl = computed(() => {
   if (!props.profileUrl) return '';
   const separator = props.profileUrl.includes('?') ? '&' : '?';
@@ -247,6 +260,30 @@ const comboImages = combo =>
     .slice(0, 3);
 const lineCombo = line =>
   combos.value.find(combo => combo.id === (line.comboId || line.combo_id));
+const variantOptions = product =>
+  availableVariants(product).map(variant => ({
+    value: variant.id,
+    label: variantOptionLabel(variant),
+  }));
+const addressOptions = computed(() =>
+  customerAddresses.value.map(address => ({
+    value: address.id,
+    label: addressLabel(address),
+  }))
+);
+const couponOptions = computed(() => [
+  { value: '', label: t('CONVERSATION_SIDEBAR.NERK.NO_COUPON') },
+  ...coupons.value.map(coupon => ({
+    value: coupon.code,
+    label: couponLabel(coupon),
+  })),
+]);
+const shippingOptions = computed(() =>
+  (quote.value?.shipping?.options || []).map(option => ({
+    value: option.serviceId,
+    label: shippingOptionLabel(option),
+  }))
+);
 
 const applyCart = cart => {
   currentCartId.value = cart.id;
@@ -273,6 +310,7 @@ const applyCart = cart => {
   shippingServiceId.value = cart.quote?.shipping?.selected?.serviceId || '';
   shippingDiscountCents.value =
     cart.quote?.amounts?.shipping_discount_cents || 0;
+  shippingDiscountInput.value = formatCurrency(shippingDiscountCents.value);
   cartUrl.value = cart.cart_url || '';
   paymentUrl.value = cart.payment_url || '';
   backofficeUrl.value = cart.backoffice_url || '';
@@ -509,6 +547,47 @@ const chooseAddress = () => {
   if (lines.value.length) scheduleCartSave();
 };
 
+const selectAddress = addressId => {
+  if (!addressId) return;
+  selectedAddressId.value = addressId;
+  chooseAddress();
+};
+
+const selectShippingService = serviceId => {
+  if (!serviceId) return;
+  shippingServiceId.value = serviceId;
+  scheduleCartSave();
+};
+
+const selectCoupon = code => {
+  couponCode.value = code;
+  scheduleCartSave();
+};
+
+const selectVariant = (product, variantId) => {
+  if (variantId) selectedVariantIds.value[product.id] = variantId;
+};
+
+const editShippingDiscount = event => {
+  shippingDiscountInput.value = (
+    shippingDiscountCents.value / 100
+  ).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  window.setTimeout(() => event.target.select());
+};
+
+const commitShippingDiscount = event => {
+  const requestedCents = parseCurrencyInput(event.target.value);
+  shippingDiscountCents.value = Math.min(
+    requestedCents,
+    shippingDiscountLimitCents.value
+  );
+  shippingDiscountInput.value = formatCurrency(shippingDiscountCents.value);
+  if (lines.value.length) scheduleCartSave();
+};
+
 const resetCart = () => {
   saveQueued = false;
   currentCartId.value = null;
@@ -522,6 +601,7 @@ const resetCart = () => {
   shippingZip.value = customerAddresses.value[0]?.zip || '';
   shippingServiceId.value = '';
   shippingDiscountCents.value = 0;
+  shippingDiscountInput.value = formatCurrency(0);
   query.value = '';
   products.value = [];
   lastSavedAt.value = null;
@@ -625,6 +705,41 @@ const closePanel = () => {
   if (currentCartId.value) saveCart();
   dialog.value?.close();
 };
+
+watch(
+  () =>
+    customerAddresses.value
+      .map(address =>
+        [
+          address.id,
+          address.zip,
+          address.street,
+          address.number,
+          address.updatedAt || address.updated_at,
+        ].join(':')
+      )
+      .join('|'),
+  () => {
+    const currentAddress = selectedAddress.value;
+    if (!currentAddress && customerAddresses.value.length) {
+      selectedAddressId.value = customerAddresses.value[0].id;
+      shippingZip.value = customerAddresses.value[0].zip || '';
+      shippingServiceId.value = '';
+      if (flowStep.value === 'pdv' && lines.value.length) scheduleCartSave();
+      return;
+    }
+
+    if (
+      currentAddress &&
+      currentAddress.zip?.replace(/\D/g, '') !==
+        shippingZip.value.replace(/\D/g, '')
+    ) {
+      shippingZip.value = currentAddress.zip || '';
+      shippingServiceId.value = '';
+      if (flowStep.value === 'pdv' && lines.value.length) scheduleCartSave();
+    }
+  }
+);
 
 onBeforeUnmount(() => {
   window.clearTimeout(searchTimer);
@@ -1167,18 +1282,21 @@ defineExpose({ open });
                 <label class="block text-[11px] font-medium text-n-slate-11">
                   {{ t('CONVERSATION_SIDEBAR.NERK.SELECT_VARIANT') }}
                 </label>
-                <select
-                  v-model="selectedVariantIds[product.id]"
-                  class="w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm text-n-slate-12"
-                >
-                  <option
-                    v-for="variant in availableVariants(product)"
-                    :key="variant.id"
-                    :value="variant.id"
-                  >
-                    {{ variantOptionLabel(variant) }}
-                  </option>
-                </select>
+                <ComboBox
+                  :model-value="selectedVariantIds[product.id]"
+                  :options="variantOptions(product)"
+                  :placeholder="t('CONVERSATION_SIDEBAR.NERK.SELECT_VARIANT')"
+                  :search-placeholder="
+                    t('CONVERSATION_SIDEBAR.NERK.SEARCH_VARIANT')
+                  "
+                  :empty-state="
+                    t('CONVERSATION_SIDEBAR.NERK.NO_VARIANTS_AVAILABLE')
+                  "
+                  :clearable="false"
+                  active-color="slate"
+                  class="[&_button]:!px-2 [&_button]:!py-1.5 [&_button]:!text-xs"
+                  @update:model-value="selectVariant(product, $event)"
+                />
                 <div
                   class="flex items-center gap-3 rounded-lg bg-n-alpha-2 p-2"
                 >
@@ -1449,41 +1567,46 @@ defineExpose({ open });
                   class="text-[10px] uppercase tracking-wide text-n-slate-10"
                 >
                   {{ t('CONVERSATION_SIDEBAR.NERK.DELIVERY_ADDRESS') }}
-                  <select
-                    v-model="selectedAddressId"
-                    class="mt-1 w-full rounded-lg border border-n-weak bg-n-solid-1 px-2 py-1.5 text-xs"
+                  <ComboBox
+                    :model-value="selectedAddressId"
+                    :options="addressOptions"
+                    :placeholder="t('CONVERSATION_SIDEBAR.NERK.SELECT_ADDRESS')"
+                    :search-placeholder="
+                      t('CONVERSATION_SIDEBAR.NERK.SEARCH_ADDRESS')
+                    "
+                    :empty-state="
+                      t('CONVERSATION_SIDEBAR.NERK.ADDRESS_REQUIRED')
+                    "
                     :disabled="!customerAddresses.length || saving"
-                    @change="chooseAddress"
-                  >
-                    <option value="">
-                      {{ t('CONVERSATION_SIDEBAR.NERK.SELECT_ADDRESS') }}
-                    </option>
-                    <option
-                      v-for="address in customerAddresses"
-                      :key="address.id"
-                      :value="address.id"
-                    >
-                      {{ addressLabel(address) }}
-                    </option>
-                  </select>
+                    :clearable="false"
+                    active-color="slate"
+                    class="mt-1 [&_button]:!px-2 [&_button]:!py-1.5 [&_button]:!text-xs"
+                    @update:model-value="selectAddress"
+                  />
                 </label>
                 <label
                   class="text-[10px] uppercase tracking-wide text-n-slate-10"
                 >
                   {{ t('CONVERSATION_SIDEBAR.NERK.SHIPPING_DISCOUNT') }}
                   <input
-                    :value="(shippingDiscountCents / 100).toFixed(2)"
-                    type="number"
-                    min="0"
-                    step="0.01"
+                    v-model="shippingDiscountInput"
+                    type="text"
+                    inputmode="decimal"
+                    :disabled="!selectedAddress || saving || !lines.length"
                     class="nerk-display mt-1 w-full rounded-lg border border-n-weak bg-n-solid-1 px-2 py-1.5 text-xs"
-                    @change="
-                      shippingDiscountCents = Math.round(
-                        Number($event.target.value || 0) * 100
-                      );
-                      scheduleCartSave();
-                    "
+                    @focus="editShippingDiscount"
+                    @blur="commitShippingDiscount"
+                    @keydown.enter.prevent="$event.target.blur()"
                   />
+                  <span
+                    class="mt-1 block text-[9px] normal-case text-n-slate-10"
+                  >
+                    {{
+                      t('CONVERSATION_SIDEBAR.NERK.SHIPPING_DISCOUNT_LIMIT', {
+                        amount: formatCurrency(shippingDiscountLimitCents),
+                      })
+                    }}
+                  </span>
                 </label>
               </div>
               <div class="mt-1.5 flex items-center justify-between gap-2">
@@ -1504,20 +1627,21 @@ defineExpose({ open });
                   {{ t('CONVERSATION_SIDEBAR.NERK.ADD_NEW_ADDRESS') }}
                 </a>
               </div>
-              <select
+              <ComboBox
                 v-if="quote?.shipping?.options?.length"
-                v-model="shippingServiceId"
-                class="mt-2 w-full rounded-lg border border-n-weak bg-n-solid-1 px-2 py-1.5 text-xs"
-                @change="scheduleCartSave"
-              >
-                <option
-                  v-for="option in quote.shipping.options"
-                  :key="option.serviceId"
-                  :value="option.serviceId"
-                >
-                  {{ shippingOptionLabel(option) }}
-                </option>
-              </select>
+                :model-value="shippingServiceId"
+                :options="shippingOptions"
+                :placeholder="
+                  t('CONVERSATION_SIDEBAR.NERK.SELECT_SHIPPING_SERVICE')
+                "
+                :search-placeholder="
+                  t('CONVERSATION_SIDEBAR.NERK.SEARCH_SHIPPING_SERVICE')
+                "
+                :clearable="false"
+                active-color="slate"
+                class="mt-2 [&_button]:!px-2 [&_button]:!py-1.5 [&_button]:!text-xs"
+                @update:model-value="selectShippingService"
+              />
               <p
                 v-else-if="quote?.shipping?.fallback_reason"
                 class="mt-2 text-[10px] text-n-slate-10"
@@ -1529,23 +1653,19 @@ defineExpose({ open });
               class="block text-[10px] uppercase tracking-wide text-n-slate-10"
             >
               {{ t('CONVERSATION_SIDEBAR.NERK.COUPON_CODE') }}
-              <select
-                v-model="couponCode"
-                class="mt-1 w-full rounded-lg border border-n-weak bg-n-solid-1 px-2 py-1.5 text-xs"
+              <ComboBox
+                :model-value="couponCode"
+                :options="couponOptions"
+                :placeholder="t('CONVERSATION_SIDEBAR.NERK.NO_COUPON')"
+                :search-placeholder="
+                  t('CONVERSATION_SIDEBAR.NERK.SEARCH_COUPON')
+                "
+                :empty-state="t('CONVERSATION_SIDEBAR.NERK.NO_COUPON_FOUND')"
                 :disabled="!lines.length || saving"
-                @change="scheduleCartSave"
-              >
-                <option value="">
-                  {{ t('CONVERSATION_SIDEBAR.NERK.NO_COUPON') }}
-                </option>
-                <option
-                  v-for="coupon in coupons"
-                  :key="coupon.code"
-                  :value="coupon.code"
-                >
-                  {{ couponLabel(coupon) }}
-                </option>
-              </select>
+                active-color="slate"
+                class="mt-1 [&_button]:!px-2 [&_button]:!py-1.5 [&_button]:!text-xs"
+                @update:model-value="selectCoupon"
+              />
             </label>
             <dl v-if="quote" class="mt-2 space-y-1 text-xs">
               <div class="flex justify-between">
