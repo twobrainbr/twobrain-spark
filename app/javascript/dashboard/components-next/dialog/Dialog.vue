@@ -76,7 +76,7 @@ const isOpen = ref(false);
 const maxWidthClass = computed(() => {
   const classesMap = {
     panel:
-      '!w-[min(72rem,68vw)] !max-w-[calc(100vw-5rem)] !min-w-0 !h-[calc(100vh-2rem)] !max-h-[calc(100vh-2rem)] ml-auto mr-4 my-4 rounded-xl',
+      '!w-[min(90rem,82vw)] !max-w-[calc(100vw-2rem)] !min-w-0 !h-[calc(100vh-2rem)] !max-h-[calc(100vh-2rem)] ml-auto mr-4 my-4 rounded-xl max-md:!w-[calc(100vw-1rem)] max-md:!max-w-[calc(100vw-1rem)] max-md:!h-[calc(100vh-1rem)] max-md:!max-h-[calc(100vh-1rem)] max-md:!m-2',
     '5xl': 'max-w-5xl',
     '3xl': 'max-w-3xl',
     '2xl': 'max-w-2xl',

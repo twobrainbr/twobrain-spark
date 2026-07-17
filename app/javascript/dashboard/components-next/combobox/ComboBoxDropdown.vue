@@ -27,6 +27,11 @@ const props = defineProps({
     type: [String, Number, Array],
     default: () => [],
   },
+  placement: {
+    type: String,
+    default: 'bottom',
+    validator: value => ['top', 'bottom'].includes(value),
+  },
 });
 
 const emit = defineEmits(['select', 'search']);
@@ -60,7 +65,12 @@ defineExpose({
 <template>
   <div
     v-show="open"
-    class="absolute z-50 w-full mt-1 transition-opacity duration-200 border rounded-md shadow-lg bg-n-solid-1 border-n-strong"
+    class="absolute z-50 w-full transition-all duration-200 border rounded-md shadow-lg bg-n-solid-1 border-n-strong"
+    :class="
+      placement === 'top'
+        ? 'bottom-full mb-1 origin-bottom'
+        : 'top-full mt-1 origin-top'
+    "
   >
     <div class="relative border-b border-n-strong">
       <span class="absolute i-lucide-search top-2.5 size-4 left-3" />

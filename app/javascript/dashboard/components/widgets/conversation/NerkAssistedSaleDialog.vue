@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import NerkAPI from 'dashboard/api/integrations/nerk';
+import { useAlert } from 'dashboard/composables';
 import Button from 'dashboard/components-next/button/Button.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -72,6 +73,10 @@ const copied = ref('');
 const lastSavedAt = ref(null);
 const profileOpen = ref(false);
 const previewLine = ref(null);
+const productPreview = ref(null);
+const productPreviewVariantId = ref('');
+const productPreviewImageIndex = ref(0);
+const loadingProductPreview = ref(false);
 const addressPickerOpen = ref(false);
 const addressSearch = ref('');
 const redeemPoints = ref(0);
@@ -181,6 +186,11 @@ const formatCurrency = amount =>
     style: 'currency',
     currency: 'BRL',
   }).format((amount || 0) / 100);
+const formatCurrencyInput = amount =>
+  ((amount || 0) / 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 const formatPostalCode = zip =>
   String(zip || '')
     .replace(/\D/g, '')
@@ -264,6 +274,35 @@ const selectedVariant = product => {
   const selectedId = selectedVariantIds.value[product.id];
   return available.find(variant => variant.id === selectedId) || available[0];
 };
+const selectedVariantLine = product => {
+  const variant = selectedVariant(product);
+  if (!variant) return null;
+  return lines.value.find(
+    line => (line.variantId || line.variant_id) === variant.id
+  );
+};
+const productPreviewVariant = computed(() => {
+  const variants = productPreview.value?.variants || [];
+  return (
+    variants.find(variant => variant.id === productPreviewVariantId.value) ||
+    variants[0]
+  );
+});
+const productPreviewImages = computed(() => {
+  const variantImages = productPreviewVariant.value?.images || [];
+  return variantImages.length
+    ? variantImages
+    : productPreview.value?.images || [];
+});
+const productPreviewUrl = computed(
+  () => productPreviewVariant.value?.url || productPreview.value?.url || ''
+);
+const productPreviewDimensions = computed(() => {
+  const variant = productPreviewVariant.value;
+  if (!variant) return '';
+  const dimensions = [variant.width_cm, variant.height_cm, variant.length_cm];
+  return dimensions.every(Boolean) ? `${dimensions.join(' × ')} cm` : '';
+});
 const comboImages = combo =>
   (combo.items || [])
     .map(item => productImage(item.product || {}))
@@ -322,7 +361,9 @@ const applyCart = cart => {
   shippingServiceId.value = cart.quote?.shipping?.selected?.serviceId || '';
   shippingDiscountCents.value =
     cart.quote?.amounts?.shipping_discount_cents || 0;
-  shippingDiscountInput.value = formatCurrency(shippingDiscountCents.value);
+  shippingDiscountInput.value = formatCurrencyInput(
+    shippingDiscountCents.value
+  );
   cartUrl.value = cart.cart_url || '';
   paymentUrl.value = cart.payment_url || '';
   backofficeUrl.value = cart.backoffice_url || '';
@@ -496,6 +537,7 @@ const addCombo = async combo => {
     }
   });
   scheduleCartSave();
+  useAlert(t('CONVERSATION_SIDEBAR.NERK.COMBO_ADDED', { name: combo.name }));
 };
 
 const addVariant = async (product, variant) => {
@@ -524,6 +566,9 @@ const addVariant = async (product, variant) => {
     });
   }
   scheduleCartSave();
+  useAlert(
+    t('CONVERSATION_SIDEBAR.NERK.PRODUCT_ADDED', { name: product.name })
+  );
 };
 
 const addSelectedVariant = product => {
@@ -566,6 +611,7 @@ const selectAddress = addressId => {
   selectedAddressId.value = addressId;
   addressPickerOpen.value = false;
   chooseAddress();
+  useAlert(t('CONVERSATION_SIDEBAR.NERK.ADDRESS_UPDATED'));
 };
 
 const toggleAddressPicker = () => {
@@ -582,6 +628,47 @@ const selectShippingService = serviceId => {
 const selectCoupon = code => {
   couponCode.value = code;
   scheduleCartSave();
+  useAlert(
+    code
+      ? t('CONVERSATION_SIDEBAR.NERK.COUPON_APPLIED')
+      : t('CONVERSATION_SIDEBAR.NERK.COUPON_REMOVED')
+  );
+};
+
+const openProductPreview = async product => {
+  productPreview.value = product;
+  productPreviewVariantId.value = selectedVariant(product)?.id || '';
+  productPreviewImageIndex.value = 0;
+  loadingProductPreview.value = true;
+  try {
+    const response = await NerkAPI.getProduct(product.id);
+    productPreview.value = response.data.product;
+    if (
+      !productPreview.value?.variants?.some(
+        variant => variant.id === productPreviewVariantId.value
+      )
+    ) {
+      productPreviewVariantId.value = productPreview.value?.variants?.[0]?.id;
+    }
+  } catch (requestError) {
+    useAlert(
+      requestError.response?.data?.error ||
+        t('CONVERSATION_SIDEBAR.NERK.PRODUCT_DETAILS_ERROR')
+    );
+    productPreview.value = null;
+  } finally {
+    loadingProductPreview.value = false;
+  }
+};
+
+const selectProductPreviewVariant = variantId => {
+  productPreviewVariantId.value = variantId;
+  productPreviewImageIndex.value = 0;
+};
+
+const closeProductPreview = () => {
+  productPreview.value = null;
+  productPreviewVariantId.value = '';
 };
 
 const selectVariant = (product, variantId) => {
@@ -604,7 +691,9 @@ const commitShippingDiscount = event => {
     requestedCents,
     shippingDiscountLimitCents.value
   );
-  shippingDiscountInput.value = formatCurrency(shippingDiscountCents.value);
+  shippingDiscountInput.value = formatCurrencyInput(
+    shippingDiscountCents.value
+  );
   if (lines.value.length) scheduleCartSave();
 };
 
@@ -622,7 +711,7 @@ const resetCart = () => {
   shippingZip.value = customerAddresses.value[0]?.zip || '';
   shippingServiceId.value = '';
   shippingDiscountCents.value = 0;
-  shippingDiscountInput.value = formatCurrency(0);
+  shippingDiscountInput.value = formatCurrencyInput(0);
   query.value = '';
   products.value = [];
   lastSavedAt.value = null;
@@ -671,6 +760,7 @@ const copyLink = async (type, value) => {
   window.setTimeout(() => {
     copied.value = '';
   }, 1800);
+  useAlert(t('CONVERSATION_SIDEBAR.NERK.LINK_COPIED'));
 };
 
 const redeemLoyalty = async () => {
@@ -938,187 +1028,212 @@ defineExpose({ open });
           </button>
         </div>
 
-        <div
-          v-if="profileOpen"
-          class="absolute right-3 top-[calc(100%+0.5rem)] z-30 flex max-h-[calc(100vh-8rem)] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-n-weak bg-n-solid-1 shadow-xl"
+        <Transition
+          enter-active-class="transition-opacity duration-200"
+          enter-from-class="opacity-0"
+          leave-active-class="transition-opacity duration-150"
+          leave-to-class="opacity-0"
         >
-          <div class="flex items-start gap-3 border-b border-n-weak p-4">
-            <span
-              class="nerk-display flex size-11 shrink-0 items-center justify-center rounded-full bg-n-slate-12 text-sm font-semibold text-white"
-              >{{ customerInitials }}</span
-            >
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-semibold text-n-slate-12">
-                {{ customer?.name }}
-              </p>
-              <a
-                v-if="customer?.email"
-                :href="`mailto:${customer.email}`"
-                class="block truncate text-xs text-n-brand hover:underline"
-                >{{ customer.email }}</a
-              >
+          <button
+            v-if="profileOpen"
+            type="button"
+            class="fixed inset-0 z-20 cursor-default bg-black/40 backdrop-blur-[1px]"
+            :aria-label="t('CONVERSATION_SIDEBAR.NERK.CLOSE')"
+            @click="profileOpen = false"
+          />
+        </Transition>
+        <Transition
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="translate-y-2 scale-95 opacity-0"
+          leave-active-class="transition duration-150 ease-in"
+          leave-to-class="translate-y-2 scale-95 opacity-0"
+        >
+          <div
+            v-if="profileOpen"
+            class="absolute right-3 top-[calc(100%+0.5rem)] z-30 flex max-h-[calc(100vh-8rem)] w-[min(24rem,calc(100vw-2rem))] origin-top-right flex-col overflow-hidden rounded-xl border border-n-weak bg-n-solid-1 shadow-2xl"
+          >
+            <div class="flex items-start gap-3 border-b border-n-weak p-4">
               <span
-                v-if="customer?.email"
-                class="mt-1 inline-flex items-center gap-1 text-[10px]"
-                :class="
-                  emailValidation?.valid ? 'text-n-slate-12' : 'text-n-ruby-11'
-                "
+                class="nerk-display flex size-11 shrink-0 items-center justify-center rounded-full bg-n-slate-12 text-sm font-semibold text-white"
+                >{{ customerInitials }}</span
               >
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold text-n-slate-12">
+                  {{ customer?.name }}
+                </p>
+                <a
+                  v-if="customer?.email"
+                  :href="`mailto:${customer.email}`"
+                  class="block truncate text-xs text-n-brand hover:underline"
+                  >{{ customer.email }}</a
+                >
                 <span
+                  v-if="customer?.email"
+                  class="mt-1 inline-flex items-center gap-1 text-[10px]"
                   :class="
-                    validatingEmail
-                      ? 'i-lucide-loader-circle animate-spin'
-                      : emailValidation?.valid
-                        ? 'i-lucide-badge-check'
-                        : 'i-lucide-circle-alert'
+                    emailValidation?.valid
+                      ? 'text-n-slate-12'
+                      : 'text-n-ruby-11'
                   "
-                  class="size-3"
-                />
-                {{
-                  validatingEmail
-                    ? t('CONVERSATION_SIDEBAR.NERK.VALIDATING_EMAIL')
-                    : emailValidation?.valid
-                      ? t('CONVERSATION_SIDEBAR.NERK.EMAIL_VALID')
-                      : t('CONVERSATION_SIDEBAR.NERK.EMAIL_REVIEW')
-                }}
-              </span>
-              <a
-                v-if="customer?.phone"
-                :href="`tel:${customer.phone}`"
-                class="block truncate text-xs text-n-brand hover:underline"
-                >{{ customer.phone }}</a
-              >
-            </div>
-            <button
-              type="button"
-              class="i-lucide-x size-4 text-n-slate-10 hover:text-n-slate-12"
-              :aria-label="t('CONVERSATION_SIDEBAR.NERK.CLOSE')"
-              @click="profileOpen = false"
-            />
-          </div>
-
-          <div class="space-y-3 overflow-y-auto p-4">
-            <div class="grid grid-cols-2 gap-2">
-              <div class="rounded-lg border border-n-weak bg-n-solid-1 p-3">
-                <p class="text-[10px] uppercase tracking-wide text-n-slate-10">
-                  {{ t('CONVERSATION_SIDEBAR.NERK.WALLET_BALANCE') }}
-                </p>
-                <p
-                  class="nerk-display mt-1 text-lg font-semibold text-n-slate-12"
                 >
-                  {{ formatCurrency(walletBalance) }}
-                </p>
-                <p class="text-[11px] text-n-slate-10">
-                  {{ t('CONVERSATION_SIDEBAR.NERK.WALLET_CHECKOUT_HELP') }}
-                </p>
-              </div>
-              <div
-                class="rounded-lg border border-[#86F2AE]/40 bg-[#0C0F0D] p-3 text-white"
-              >
-                <p class="text-[10px] uppercase tracking-wide text-white/65">
-                  {{ t('CONVERSATION_SIDEBAR.NERK.CLUB_POINTS') }}
-                </p>
-                <p
-                  class="nerk-display mt-1 text-lg font-semibold text-[#86F2AE]"
-                >
-                  {{ pointsBalance }}
-                </p>
-                <p class="text-[11px] text-white/70">
+                  <span
+                    :class="
+                      validatingEmail
+                        ? 'i-lucide-loader-circle animate-spin'
+                        : emailValidation?.valid
+                          ? 'i-lucide-badge-check'
+                          : 'i-lucide-circle-alert'
+                    "
+                    class="size-3"
+                  />
                   {{
-                    t('CONVERSATION_SIDEBAR.NERK.POINTS_WORTH', {
-                      value: formatCurrency(redeemableValue),
+                    validatingEmail
+                      ? t('CONVERSATION_SIDEBAR.NERK.VALIDATING_EMAIL')
+                      : emailValidation?.valid
+                        ? t('CONVERSATION_SIDEBAR.NERK.EMAIL_VALID')
+                        : t('CONVERSATION_SIDEBAR.NERK.EMAIL_REVIEW')
+                  }}
+                </span>
+                <a
+                  v-if="customer?.phone"
+                  :href="`tel:${customer.phone}`"
+                  class="block truncate text-xs text-n-brand hover:underline"
+                  >{{ customer.phone }}</a
+                >
+              </div>
+              <button
+                type="button"
+                class="i-lucide-x size-4 text-n-slate-10 hover:text-n-slate-12"
+                :aria-label="t('CONVERSATION_SIDEBAR.NERK.CLOSE')"
+                @click="profileOpen = false"
+              />
+            </div>
+
+            <div class="space-y-3 overflow-y-auto p-4">
+              <div class="grid grid-cols-2 gap-2">
+                <div class="rounded-lg border border-n-weak bg-n-solid-1 p-3">
+                  <p
+                    class="text-[10px] uppercase tracking-wide text-n-slate-10"
+                  >
+                    {{ t('CONVERSATION_SIDEBAR.NERK.WALLET_BALANCE') }}
+                  </p>
+                  <p
+                    class="nerk-display mt-1 text-lg font-semibold text-n-slate-12"
+                  >
+                    {{ formatCurrency(walletBalance) }}
+                  </p>
+                  <p class="text-[11px] text-n-slate-10">
+                    {{ t('CONVERSATION_SIDEBAR.NERK.WALLET_CHECKOUT_HELP') }}
+                  </p>
+                </div>
+                <div
+                  class="rounded-lg border border-[#86F2AE]/40 bg-[#0C0F0D] p-3 text-white"
+                >
+                  <p class="text-[10px] uppercase tracking-wide text-white/65">
+                    {{ t('CONVERSATION_SIDEBAR.NERK.CLUB_POINTS') }}
+                  </p>
+                  <p
+                    class="nerk-display mt-1 text-lg font-semibold text-[#86F2AE]"
+                  >
+                    {{ pointsBalance }}
+                  </p>
+                  <p class="text-[11px] text-white/70">
+                    {{
+                      t('CONVERSATION_SIDEBAR.NERK.POINTS_WORTH', {
+                        value: formatCurrency(redeemableValue),
+                      })
+                    }}
+                  </p>
+                </div>
+              </div>
+
+              <form
+                v-if="clubEligible && pointValueCents"
+                class="rounded-lg border border-n-weak p-3"
+                @submit.prevent="redeemLoyalty"
+              >
+                <div class="flex items-end gap-2">
+                  <label class="min-w-0 flex-1 text-xs text-n-slate-11">
+                    {{ t('CONVERSATION_SIDEBAR.NERK.CONVERT_POINTS') }}
+                    <input
+                      v-model.number="redeemPoints"
+                      type="number"
+                      :min="minRedeemPoints"
+                      :max="pointsBalance"
+                      step="1"
+                      class="mt-1 w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm text-n-slate-12"
+                    />
+                  </label>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    color="blue"
+                    :disabled="
+                      redeemPoints < minRedeemPoints ||
+                      redeemPoints > pointsBalance
+                    "
+                    :is-loading="redeeming"
+                    :label="
+                      t('CONVERSATION_SIDEBAR.NERK.CONVERT_VALUE', {
+                        value: redeemPreview,
+                      })
+                    "
+                  />
+                </div>
+                <p class="mt-2 text-[11px] text-n-slate-10">
+                  {{
+                    t('CONVERSATION_SIDEBAR.NERK.MIN_REDEEM', {
+                      count: minRedeemPoints,
                     })
                   }}
                 </p>
-              </div>
-            </div>
+              </form>
 
-            <form
-              v-if="clubEligible && pointValueCents"
-              class="rounded-lg border border-n-weak p-3"
-              @submit.prevent="redeemLoyalty"
-            >
-              <div class="flex items-end gap-2">
-                <label class="min-w-0 flex-1 text-xs text-n-slate-11">
-                  {{ t('CONVERSATION_SIDEBAR.NERK.CONVERT_POINTS') }}
-                  <input
-                    v-model.number="redeemPoints"
-                    type="number"
-                    :min="minRedeemPoints"
-                    :max="pointsBalance"
-                    step="1"
-                    class="mt-1 w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm text-n-slate-12"
-                  />
-                </label>
-                <Button
-                  type="submit"
-                  size="sm"
-                  color="blue"
-                  :disabled="
-                    redeemPoints < minRedeemPoints ||
-                    redeemPoints > pointsBalance
-                  "
-                  :is-loading="redeeming"
-                  :label="
-                    t('CONVERSATION_SIDEBAR.NERK.CONVERT_VALUE', {
-                      value: redeemPreview,
-                    })
-                  "
-                />
+              <div class="grid grid-cols-2 gap-2">
+                <a
+                  v-if="profileUrl"
+                  :href="profileSectionUrl('fiscal')"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
+                  >{{ t('CONVERSATION_SIDEBAR.NERK.EDIT_PROFILE') }}</a
+                >
+                <a
+                  v-if="profileUrl"
+                  :href="profileSectionUrl('contacts')"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
+                  >{{ t('CONVERSATION_SIDEBAR.NERK.ADD_CONTACT') }}</a
+                >
+                <a
+                  v-if="profileUrl"
+                  :href="profileSectionUrl('fiscal')"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
+                  >{{ t('CONVERSATION_SIDEBAR.NERK.EDIT_FISCAL') }}</a
+                >
+                <a
+                  v-if="profileUrl"
+                  :href="profileSectionUrl('addresses')"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
+                  >{{ t('CONVERSATION_SIDEBAR.NERK.MANAGE_ADDRESSES') }}</a
+                >
               </div>
-              <p class="mt-2 text-[11px] text-n-slate-10">
+              <p v-if="customer?.document" class="text-xs text-n-slate-10">
                 {{
-                  t('CONVERSATION_SIDEBAR.NERK.MIN_REDEEM', {
-                    count: minRedeemPoints,
-                  })
+                  customer?.person_type === 'pj'
+                    ? t('CONVERSATION_SIDEBAR.NERK.COMPANY_DOCUMENT')
+                    : t('CONVERSATION_SIDEBAR.NERK.PERSON_DOCUMENT')
                 }}
+                · {{ customer.document }}
               </p>
-            </form>
-
-            <div class="grid grid-cols-2 gap-2">
-              <a
-                v-if="profileUrl"
-                :href="profileSectionUrl('fiscal')"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
-                >{{ t('CONVERSATION_SIDEBAR.NERK.EDIT_PROFILE') }}</a
-              >
-              <a
-                v-if="profileUrl"
-                :href="profileSectionUrl('contacts')"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
-                >{{ t('CONVERSATION_SIDEBAR.NERK.ADD_CONTACT') }}</a
-              >
-              <a
-                v-if="profileUrl"
-                :href="profileSectionUrl('fiscal')"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
-                >{{ t('CONVERSATION_SIDEBAR.NERK.EDIT_FISCAL') }}</a
-              >
-              <a
-                v-if="profileUrl"
-                :href="profileSectionUrl('addresses')"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="rounded-lg border border-n-weak px-3 py-2 text-center text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2"
-                >{{ t('CONVERSATION_SIDEBAR.NERK.MANAGE_ADDRESSES') }}</a
-              >
             </div>
-            <p v-if="customer?.document" class="text-xs text-n-slate-10">
-              {{
-                customer?.person_type === 'pj'
-                  ? t('CONVERSATION_SIDEBAR.NERK.COMPANY_DOCUMENT')
-                  : t('CONVERSATION_SIDEBAR.NERK.PERSON_DOCUMENT')
-              }}
-              · {{ customer.document }}
-            </p>
           </div>
-        </div>
+        </Transition>
       </div>
 
       <div
@@ -1291,7 +1406,7 @@ defineExpose({ open });
           </div>
 
           <div
-            class="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto overscroll-contain pr-2 lg:grid-cols-2"
+            class="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto overscroll-contain pr-2"
           >
             <article
               v-for="combo in visibleCombos"
@@ -1344,74 +1459,73 @@ defineExpose({ open });
             <article
               v-for="product in visibleProducts"
               :key="product.id"
-              class="rounded-xl border border-n-weak bg-n-solid-1 p-3 transition hover:border-n-brand"
+              class="group rounded-xl border border-n-weak bg-n-solid-1 p-2.5 transition duration-200 hover:-translate-y-0.5 hover:border-n-brand hover:shadow-lg"
             >
               <div class="flex gap-3">
-                <img
-                  :src="productImage(product)"
-                  :alt="product.name"
-                  class="size-16 rounded-lg border border-n-weak object-cover"
-                />
+                <button
+                  type="button"
+                  class="relative size-14 shrink-0 overflow-hidden rounded-lg border border-n-weak"
+                  :aria-label="
+                    t('CONVERSATION_SIDEBAR.NERK.VIEW_PRODUCT_DETAILS')
+                  "
+                  @click="openProductPreview(product)"
+                >
+                  <img
+                    :src="productImage(product)"
+                    :alt="product.name"
+                    class="size-full object-cover transition duration-300 group-hover:scale-105"
+                  />
+                  <span
+                    class="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/25 group-hover:opacity-100"
+                  >
+                    <span class="i-lucide-expand size-4" />
+                  </span>
+                </button>
                 <div class="min-w-0 flex-1">
-                  <p
-                    class="nerk-display line-clamp-2 text-base font-semibold leading-tight text-n-slate-12"
+                  <button
+                    type="button"
+                    class="nerk-display line-clamp-2 text-left text-base font-semibold leading-tight text-n-slate-12 hover:underline"
+                    @click="openProductPreview(product)"
                   >
                     {{ product.name }}
-                  </p>
+                  </button>
                   <p class="text-xs text-n-slate-11">
                     {{ productTaxonomy(product) }}
                   </p>
                 </div>
               </div>
-              <div v-if="selectedVariant(product)" class="mt-3 space-y-2">
-                <label class="block text-[11px] font-medium text-n-slate-11">
-                  {{ t('CONVERSATION_SIDEBAR.NERK.SELECT_VARIANT') }}
-                </label>
-                <ComboBox
-                  :model-value="selectedVariantIds[product.id]"
-                  :options="variantOptions(product)"
-                  :placeholder="t('CONVERSATION_SIDEBAR.NERK.SELECT_VARIANT')"
-                  :search-placeholder="
-                    t('CONVERSATION_SIDEBAR.NERK.SEARCH_VARIANT')
-                  "
-                  :empty-state="
-                    t('CONVERSATION_SIDEBAR.NERK.NO_VARIANTS_AVAILABLE')
-                  "
-                  :clearable="false"
-                  active-color="slate"
-                  class="[&_button]:!px-2 [&_button]:!py-1.5 [&_button]:!text-xs"
-                  @update:model-value="selectVariant(product, $event)"
-                />
-                <div
-                  class="flex items-center gap-3 rounded-lg bg-n-alpha-2 p-2"
-                >
-                  <img
-                    :src="variantImage(product, selectedVariant(product))"
-                    :alt="selectedVariant(product).name"
-                    class="size-12 rounded-md object-cover"
+              <div
+                v-if="selectedVariant(product)"
+                class="mt-2 grid items-end gap-2 sm:grid-cols-[minmax(12rem,1fr)_auto]"
+              >
+                <div class="min-w-0">
+                  <label
+                    class="mb-1 block text-[9px] font-medium uppercase tracking-wide text-n-slate-9"
+                  >
+                    {{ t('CONVERSATION_SIDEBAR.NERK.SELECT_VARIANT') }}
+                  </label>
+                  <ComboBox
+                    :model-value="selectedVariantIds[product.id]"
+                    :options="variantOptions(product)"
+                    :placeholder="t('CONVERSATION_SIDEBAR.NERK.SELECT_VARIANT')"
+                    :search-placeholder="
+                      t('CONVERSATION_SIDEBAR.NERK.SEARCH_VARIANT')
+                    "
+                    :empty-state="
+                      t('CONVERSATION_SIDEBAR.NERK.NO_VARIANTS_AVAILABLE')
+                    "
+                    :clearable="false"
+                    active-color="slate"
+                    class="[&_button]:!px-2 [&_button]:!py-1 [&_button]:!text-[11px]"
+                    @update:model-value="selectVariant(product, $event)"
                   />
-                  <div class="min-w-0 flex-1">
-                    <p class="truncate text-xs font-medium text-n-slate-12">
-                      {{ variantAttributes(selectedVariant(product)) }}
-                    </p>
-                    <span class="block text-[11px] text-n-slate-11">
-                      {{
-                        t('CONVERSATION_SIDEBAR.NERK.VARIANT_STOCK', {
-                          sku: selectedVariant(product).sku,
-                          count: selectedVariant(product).stock,
-                        })
-                      }}
-                    </span>
-                    <span
-                      v-if="selectedVariant(product).promotion"
-                      class="block text-[11px] text-n-teal-11"
-                    >
-                      {{ selectedVariant(product).promotion.name }}
-                    </span>
-                  </div>
-                  <div class="text-right text-xs">
+                </div>
+                <div
+                  class="flex items-center justify-between gap-3 sm:justify-end"
+                >
+                  <div class="min-w-24 text-right">
                     <p
-                      class="nerk-display text-sm font-semibold text-n-slate-12"
+                      class="nerk-display text-sm font-semibold leading-none text-n-slate-12"
                     >
                       {{
                         formatCurrency(
@@ -1419,24 +1533,57 @@ defineExpose({ open });
                         )
                       }}
                     </p>
-                    <p v-if="clubEligible" class="nerk-display text-[#0C0F0D]">
+                    <p class="mt-1 text-[9px] text-n-slate-9">
                       {{
-                        formatCurrency(
-                          selectedVariant(product).club_price_cents
-                        )
+                        t('CONVERSATION_SIDEBAR.NERK.STOCK_COUNT', {
+                          count: selectedVariant(product).stock,
+                        })
                       }}
                     </p>
                   </div>
+                  <div
+                    v-if="selectedVariantLine(product)"
+                    class="flex h-8 items-center overflow-hidden rounded-lg border border-n-weak bg-n-alpha-2"
+                  >
+                    <button
+                      type="button"
+                      class="flex size-8 items-center justify-center transition hover:bg-n-alpha-3"
+                      :aria-label="
+                        t('CONVERSATION_SIDEBAR.NERK.DECREASE_QUANTITY')
+                      "
+                      :disabled="saving"
+                      @click="changeQuantity(selectedVariantLine(product), -1)"
+                    >
+                      <span class="i-lucide-minus size-3.5" />
+                    </button>
+                    <span
+                      class="nerk-display min-w-7 text-center text-xs font-semibold text-n-slate-12"
+                    >
+                      {{ selectedVariantLine(product).quantity }}
+                    </span>
+                    <button
+                      type="button"
+                      class="flex size-8 items-center justify-center transition hover:bg-n-alpha-3"
+                      :aria-label="
+                        t('CONVERSATION_SIDEBAR.NERK.INCREASE_QUANTITY')
+                      "
+                      :disabled="saving"
+                      @click="changeQuantity(selectedVariantLine(product), 1)"
+                    >
+                      <span class="i-lucide-plus size-3.5" />
+                    </button>
+                  </div>
+                  <button
+                    v-else
+                    type="button"
+                    class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-n-slate-12 text-white transition hover:-translate-y-0.5 hover:shadow-md"
+                    :aria-label="t('CONVERSATION_SIDEBAR.NERK.ADD_TO_CART')"
+                    :disabled="saving"
+                    @click="addSelectedVariant(product)"
+                  >
+                    <span class="i-lucide-shopping-cart size-4" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  class="flex w-full items-center justify-center gap-2 rounded-lg bg-n-slate-12 px-3 py-2 text-xs font-medium text-white"
-                  :disabled="saving"
-                  @click="addSelectedVariant(product)"
-                >
-                  <span class="i-lucide-plus size-4" />
-                  {{ t('CONVERSATION_SIDEBAR.NERK.ADD_TO_CART') }}
-                </button>
               </div>
               <p v-else class="mt-3 text-xs text-n-ruby-11">
                 {{ t('CONVERSATION_SIDEBAR.NERK.NO_VARIANTS_AVAILABLE') }}
@@ -1848,15 +1995,15 @@ defineExpose({ open });
               </div>
 
               <label
-                class="mt-2 flex items-center justify-between gap-2 rounded-lg bg-n-solid-1 px-2.5 py-2"
+                class="mt-2 grid grid-cols-[minmax(0,1fr)_5.75rem] items-center gap-2 rounded-lg border border-n-weak bg-n-solid-1 px-2.5 py-1.5"
               >
-                <span class="min-w-0">
+                <span class="min-w-0 leading-tight">
                   <span
-                    class="block text-[9px] font-medium uppercase tracking-wide text-n-slate-10"
+                    class="block truncate text-[9px] font-medium uppercase tracking-wide text-n-slate-10"
                   >
                     {{ t('CONVERSATION_SIDEBAR.NERK.SHIPPING_DISCOUNT') }}
                   </span>
-                  <span class="block text-[9px] text-n-slate-9">
+                  <span class="block truncate text-[9px] text-n-slate-9">
                     {{
                       t('CONVERSATION_SIDEBAR.NERK.SHIPPING_DISCOUNT_LIMIT', {
                         amount: formatCurrency(shippingDiscountLimitCents),
@@ -1864,16 +2011,22 @@ defineExpose({ open });
                     }}
                   </span>
                 </span>
-                <input
-                  v-model="shippingDiscountInput"
-                  type="text"
-                  inputmode="decimal"
-                  :disabled="!selectedAddress || saving || !lines.length"
-                  class="nerk-display !h-8 !w-24 shrink-0 rounded-md border border-n-weak bg-n-alpha-1 px-2 !py-1 text-right text-xs text-n-slate-12"
-                  @focus="editShippingDiscount"
-                  @blur="commitShippingDiscount"
-                  @keydown.enter.prevent="$event.target.blur()"
-                />
+                <span class="relative block">
+                  <span
+                    class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[9px] text-n-slate-9"
+                    >{{ t('CONVERSATION_SIDEBAR.NERK.CURRENCY_PREFIX') }}</span
+                  >
+                  <input
+                    v-model="shippingDiscountInput"
+                    type="text"
+                    inputmode="decimal"
+                    :disabled="!selectedAddress || saving || !lines.length"
+                    class="nerk-display !h-7 w-full rounded-md border border-n-weak bg-n-alpha-1 py-1 pl-7 pr-2 text-right text-[11px] text-n-slate-12 outline-none transition focus:border-n-slate-12 focus:ring-2 focus:ring-n-alpha-3"
+                    @focus="editShippingDiscount"
+                    @blur="commitShippingDiscount"
+                    @keydown.enter.prevent="$event.target.blur()"
+                  />
+                </span>
               </label>
               <ComboBox
                 v-if="quote?.shipping?.options?.length"
@@ -1961,5 +2114,355 @@ defineExpose({ open });
         </aside>
       </div>
     </div>
+
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-opacity duration-200"
+        enter-from-class="opacity-0"
+        leave-active-class="transition-opacity duration-150"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="productPreview"
+          class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 p-3 backdrop-blur-sm sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="t('CONVERSATION_SIDEBAR.NERK.PRODUCT_DETAILS')"
+          @click.self="closeProductPreview"
+        >
+          <div
+            class="flex max-h-[min(88vh,52rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-n-solid-1 shadow-2xl transition"
+          >
+            <header
+              class="flex shrink-0 items-center justify-between gap-3 border-b border-n-weak px-4 py-3 sm:px-5"
+            >
+              <div class="min-w-0">
+                <p
+                  class="text-[10px] uppercase tracking-[0.16em] text-n-slate-9"
+                >
+                  {{ productTaxonomy(productPreview) }}
+                </p>
+                <h3
+                  class="nerk-display truncate text-lg font-semibold text-n-slate-12 sm:text-xl"
+                >
+                  {{ productPreview.name }}
+                </h3>
+              </div>
+              <button
+                type="button"
+                class="flex size-9 shrink-0 items-center justify-center rounded-full border border-n-weak text-n-slate-11 transition hover:rotate-90 hover:bg-n-alpha-2 hover:text-n-slate-12"
+                :aria-label="t('CONVERSATION_SIDEBAR.NERK.CLOSE')"
+                @click="closeProductPreview"
+              >
+                <span class="i-lucide-x size-4" />
+              </button>
+            </header>
+
+            <div
+              class="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] lg:overflow-hidden"
+            >
+              <section
+                class="min-h-0 border-b border-n-weak p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r sm:p-5"
+              >
+                <div
+                  class="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-xl bg-n-alpha-2"
+                >
+                  <Spinner v-if="loadingProductPreview" size="24" />
+                  <img
+                    v-else-if="productPreviewImages.length"
+                    :src="productPreviewImages[productPreviewImageIndex]?.url"
+                    :alt="
+                      productPreviewImages[productPreviewImageIndex]?.alt ||
+                      productPreview.name
+                    "
+                    class="size-full object-contain transition duration-300"
+                  />
+                  <span
+                    v-else
+                    class="i-lucide-image-off size-8 text-n-slate-8"
+                  />
+                  <template v-if="productPreviewImages.length > 1">
+                    <button
+                      type="button"
+                      class="absolute left-3 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:scale-105"
+                      :aria-label="
+                        t('CONVERSATION_SIDEBAR.NERK.PREVIOUS_IMAGE')
+                      "
+                      @click="
+                        productPreviewImageIndex =
+                          (productPreviewImageIndex -
+                            1 +
+                            productPreviewImages.length) %
+                          productPreviewImages.length
+                      "
+                    >
+                      <span class="i-lucide-chevron-left size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      class="absolute right-3 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:scale-105"
+                      :aria-label="t('CONVERSATION_SIDEBAR.NERK.NEXT_IMAGE')"
+                      @click="
+                        productPreviewImageIndex =
+                          (productPreviewImageIndex + 1) %
+                          productPreviewImages.length
+                      "
+                    >
+                      <span class="i-lucide-chevron-right size-4" />
+                    </button>
+                  </template>
+                </div>
+                <div
+                  v-if="productPreviewImages.length > 1"
+                  class="mt-3 flex gap-2 overflow-x-auto pb-1"
+                >
+                  <button
+                    v-for="(image, index) in productPreviewImages"
+                    :key="image.url"
+                    type="button"
+                    class="size-12 shrink-0 overflow-hidden rounded-lg border-2 transition"
+                    :class="
+                      index === productPreviewImageIndex
+                        ? 'border-n-slate-12'
+                        : 'border-transparent opacity-65 hover:opacity-100'
+                    "
+                    @click="productPreviewImageIndex = index"
+                  >
+                    <img
+                      :src="image.url"
+                      :alt="image.alt || productPreview.name"
+                      class="size-full object-cover"
+                    />
+                  </button>
+                </div>
+
+                <div class="mt-5">
+                  <h4
+                    class="nerk-display text-base font-semibold text-n-slate-12"
+                  >
+                    {{ t('CONVERSATION_SIDEBAR.NERK.DESCRIPTION') }}
+                  </h4>
+                  <p
+                    class="mt-2 whitespace-pre-line text-sm leading-6 text-n-slate-11"
+                  >
+                    {{
+                      productPreview.description ||
+                      t('CONVERSATION_SIDEBAR.NERK.NO_DESCRIPTION')
+                    }}
+                  </p>
+                </div>
+                <div v-if="productPreview.specifications?.length" class="mt-5">
+                  <h4
+                    class="nerk-display text-base font-semibold text-n-slate-12"
+                  >
+                    {{ t('CONVERSATION_SIDEBAR.NERK.TECHNICAL_SHEET') }}
+                  </h4>
+                  <dl class="mt-2 grid gap-1.5 sm:grid-cols-2">
+                    <div
+                      v-for="spec in productPreview.specifications"
+                      :key="`${spec.label}-${spec.value}`"
+                      class="rounded-lg bg-n-alpha-2 px-3 py-2"
+                    >
+                      <dt
+                        class="text-[10px] uppercase tracking-wide text-n-slate-9"
+                      >
+                        {{ spec.label }}
+                      </dt>
+                      <dd class="mt-0.5 text-xs font-medium text-n-slate-12">
+                        {{ spec.value }}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </section>
+
+              <aside class="min-h-0 p-4 lg:overflow-y-auto sm:p-5">
+                <div
+                  v-if="productPreview.rating"
+                  class="flex items-center gap-2 text-sm text-n-slate-12"
+                >
+                  <span class="i-lucide-star size-4 fill-current" />
+                  <strong>{{ productPreview.rating.average || '—' }}</strong>
+                  <span class="text-n-slate-9">
+                    {{
+                      t('CONVERSATION_SIDEBAR.NERK.REVIEWS_COUNT', {
+                        count: productPreview.rating.count,
+                      })
+                    }}
+                  </span>
+                </div>
+
+                <label
+                  class="mt-4 block text-[11px] font-medium text-n-slate-11"
+                >
+                  {{ t('CONVERSATION_SIDEBAR.NERK.SELECT_VARIANT') }}
+                </label>
+                <ComboBox
+                  class="mt-1"
+                  :model-value="productPreviewVariantId"
+                  :options="variantOptions(productPreview)"
+                  :clearable="false"
+                  active-color="slate"
+                  :search-placeholder="
+                    t('CONVERSATION_SIDEBAR.NERK.SEARCH_VARIANT')
+                  "
+                  @update:model-value="selectProductPreviewVariant"
+                />
+
+                <div
+                  v-if="productPreviewVariant"
+                  class="mt-4 rounded-xl border border-n-weak bg-n-alpha-2 p-4"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <p class="text-xs text-n-slate-10">
+                        {{ variantAttributes(productPreviewVariant) }}
+                      </p>
+                      <p class="mt-1 text-[11px] text-n-slate-9">
+                        {{
+                          t('CONVERSATION_SIDEBAR.NERK.SKU_VALUE', {
+                            sku: productPreviewVariant.sku,
+                          })
+                        }}
+                      </p>
+                    </div>
+                    <div class="text-right">
+                      <p
+                        class="nerk-display text-xl font-semibold text-n-slate-12"
+                      >
+                        {{
+                          formatCurrency(
+                            productPreviewVariant.offer_price_cents
+                          )
+                        }}
+                      </p>
+                      <p
+                        v-if="clubEligible"
+                        class="nerk-display text-sm font-semibold text-[#167A3B]"
+                      >
+                        {{
+                          formatCurrency(productPreviewVariant.club_price_cents)
+                        }}
+                        {{ t('CONVERSATION_SIDEBAR.NERK.CLUB_PRICE') }}
+                      </p>
+                    </div>
+                  </div>
+                  <dl class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div class="rounded-lg bg-n-solid-1 p-2">
+                      <dt class="text-[9px] uppercase text-n-slate-9">
+                        {{ t('CONVERSATION_SIDEBAR.NERK.STOCK') }}
+                      </dt>
+                      <dd class="mt-0.5 font-medium text-n-slate-12">
+                        {{ productPreviewVariant.stock }}
+                      </dd>
+                    </div>
+                    <div class="rounded-lg bg-n-solid-1 p-2">
+                      <dt class="text-[9px] uppercase text-n-slate-9">
+                        {{ t('CONVERSATION_SIDEBAR.NERK.WEIGHT') }}
+                      </dt>
+                      <dd class="mt-0.5 font-medium text-n-slate-12">
+                        {{
+                          productPreviewVariant.weight_grams
+                            ? `${productPreviewVariant.weight_grams} g`
+                            : '—'
+                        }}
+                      </dd>
+                    </div>
+                    <div
+                      v-if="productPreviewDimensions"
+                      class="col-span-2 rounded-lg bg-n-solid-1 p-2"
+                    >
+                      <dt class="text-[9px] uppercase text-n-slate-9">
+                        {{ t('CONVERSATION_SIDEBAR.NERK.DIMENSIONS') }}
+                      </dt>
+                      <dd class="mt-0.5 font-medium text-n-slate-12">
+                        {{ productPreviewDimensions }}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <div v-if="productPreview.reviews?.length" class="mt-5">
+                  <h4
+                    class="nerk-display text-base font-semibold text-n-slate-12"
+                  >
+                    {{ t('CONVERSATION_SIDEBAR.NERK.RECENT_REVIEWS') }}
+                  </h4>
+                  <div class="mt-2 space-y-2">
+                    <article
+                      v-for="review in productPreview.reviews.slice(0, 3)"
+                      :key="review.id"
+                      class="rounded-lg border border-n-weak p-3"
+                    >
+                      <div class="flex items-center justify-between gap-2">
+                        <p class="text-xs font-medium text-n-slate-12">
+                          {{ review.authorName }}
+                        </p>
+                        <span class="text-[10px] text-n-slate-10">
+                          {{
+                            t('CONVERSATION_SIDEBAR.NERK.RATING_SCORE', {
+                              rating: review.rating,
+                            })
+                          }}
+                        </span>
+                      </div>
+                      <p
+                        v-if="review.title"
+                        class="mt-1 text-xs font-medium text-n-slate-12"
+                      >
+                        {{ review.title }}
+                      </p>
+                      <p
+                        class="mt-1 line-clamp-3 text-xs leading-5 text-n-slate-10"
+                      >
+                        {{ review.body }}
+                      </p>
+                    </article>
+                  </div>
+                </div>
+              </aside>
+            </div>
+
+            <footer
+              class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-n-weak bg-n-alpha-1 px-4 py-3 sm:px-5"
+            >
+              <button
+                v-if="productPreviewUrl"
+                type="button"
+                class="flex items-center gap-2 rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-xs font-medium text-n-slate-12 transition hover:bg-n-alpha-2"
+                @click="copyLink('product', productPreviewUrl)"
+              >
+                <span class="i-lucide-copy size-4" />
+                {{
+                  copied === 'product'
+                    ? t('CONVERSATION_SIDEBAR.NERK.COPIED')
+                    : t('CONVERSATION_SIDEBAR.NERK.COPY_PRODUCT_LINK')
+                }}
+              </button>
+              <a
+                v-if="productPreviewUrl"
+                :href="productPreviewUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center gap-2 rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-xs font-medium text-n-slate-12 transition hover:bg-n-alpha-2"
+              >
+                <span class="i-lucide-external-link size-4" />
+                {{ t('CONVERSATION_SIDEBAR.NERK.OPEN_PRODUCT') }}
+              </a>
+              <button
+                v-if="productPreviewVariant"
+                type="button"
+                class="flex items-center gap-2 rounded-lg bg-n-slate-12 px-4 py-2 text-xs font-medium text-white transition hover:-translate-y-0.5 hover:shadow-lg"
+                :disabled="saving || productPreviewVariant.stock < 1"
+                @click="addVariant(productPreview, productPreviewVariant)"
+              >
+                <span class="i-lucide-shopping-cart size-4" />
+                {{ t('CONVERSATION_SIDEBAR.NERK.ADD_TO_CART') }}
+              </button>
+            </footer>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </Dialog>
 </template>

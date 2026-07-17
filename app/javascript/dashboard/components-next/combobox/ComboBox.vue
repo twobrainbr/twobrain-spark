@@ -37,6 +37,7 @@ const open = ref(false);
 const search = ref('');
 const dropdownRef = ref(null);
 const comboboxRef = ref(null);
+const dropdownPlacement = ref('bottom');
 
 const filteredOptions = computed(() => {
   // For API search, don't filter options locally
@@ -80,7 +81,16 @@ const toggleDropdown = () => {
   if (open.value) {
     search.value = '';
     emit('open');
-    nextTick(() => dropdownRef.value?.focus());
+    nextTick(() => {
+      const rect = comboboxRef.value?.getBoundingClientRect();
+      if (rect) {
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        dropdownPlacement.value =
+          spaceBelow < 280 && spaceAbove > spaceBelow ? 'top' : 'bottom';
+      }
+      dropdownRef.value?.focus();
+    });
   }
 };
 
@@ -128,6 +138,7 @@ watch(
         :search-placeholder="searchPlaceholder"
         :empty-state="emptyState"
         :selected-values="selectedValue"
+        :placement="dropdownPlacement"
         @search="emit('search', $event)"
         @select="selectOption"
       />
