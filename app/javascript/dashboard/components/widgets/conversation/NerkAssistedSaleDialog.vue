@@ -72,6 +72,8 @@ const copied = ref('');
 const lastSavedAt = ref(null);
 const profileOpen = ref(false);
 const previewLine = ref(null);
+const addressPickerOpen = ref(false);
+const addressSearch = ref('');
 const redeemPoints = ref(0);
 const redeeming = ref(false);
 const redeemedPointsBalance = ref(null);
@@ -111,7 +113,9 @@ const customerAddresses = computed(() =>
   [...(props.customer?.addresses || [])].sort(
     (first, second) =>
       Number(second.isDefault || second.is_default) -
-      Number(first.isDefault || first.is_default)
+        Number(first.isDefault || first.is_default) ||
+      new Date(second.updatedAt || second.updated_at || 0).getTime() -
+        new Date(first.updatedAt || first.updated_at || 0).getTime()
   )
 );
 const selectedAddress = computed(() =>
@@ -265,12 +269,13 @@ const variantOptions = product =>
     value: variant.id,
     label: variantOptionLabel(variant),
   }));
-const addressOptions = computed(() =>
-  customerAddresses.value.map(address => ({
-    value: address.id,
-    label: addressLabel(address),
-  }))
-);
+const filteredAddresses = computed(() => {
+  const search = addressSearch.value.trim().toLocaleLowerCase('pt-BR');
+  if (!search) return customerAddresses.value;
+  return customerAddresses.value.filter(address =>
+    addressLabel(address).toLocaleLowerCase('pt-BR').includes(search)
+  );
+});
 const couponOptions = computed(() => [
   { value: '', label: t('CONVERSATION_SIDEBAR.NERK.NO_COUPON') },
   ...coupons.value.map(coupon => ({
@@ -550,7 +555,13 @@ const chooseAddress = () => {
 const selectAddress = addressId => {
   if (!addressId) return;
   selectedAddressId.value = addressId;
+  addressPickerOpen.value = false;
   chooseAddress();
+};
+
+const toggleAddressPicker = () => {
+  addressPickerOpen.value = !addressPickerOpen.value;
+  addressSearch.value = '';
 };
 
 const selectShippingService = serviceId => {
@@ -607,6 +618,8 @@ const resetCart = () => {
   lastSavedAt.value = null;
   error.value = '';
   previewLine.value = null;
+  addressPickerOpen.value = false;
+  addressSearch.value = '';
 };
 
 const selectCart = async cart => {
@@ -1407,6 +1420,75 @@ defineExpose({ open });
               {{ cartSyncLabel }}
             </p>
             <div
+              v-if="quote"
+              class="mt-2 flex items-end justify-between rounded-lg bg-n-slate-12 px-3 py-2 text-white"
+            >
+              <div>
+                <p class="text-[9px] uppercase tracking-[0.14em] text-white/60">
+                  {{ t('CONVERSATION_SIDEBAR.NERK.ESTIMATED_TOTAL') }}
+                </p>
+                <p class="nerk-display text-xl font-semibold leading-none">
+                  {{ formatCurrency(amounts.estimated_total_cents) }}
+                </p>
+              </div>
+              <p class="text-[10px] text-white/60">
+                {{
+                  t('CONVERSATION_SIDEBAR.NERK.CART_ITEMS_COUNT', {
+                    count: lines.length,
+                  })
+                }}
+              </p>
+            </div>
+            <div
+              v-if="cartUrl || paymentUrl || backofficeUrl"
+              class="mt-2 grid grid-cols-3 gap-1.5"
+            >
+              <button
+                v-if="cartUrl"
+                type="button"
+                class="flex min-w-0 items-center justify-center gap-1 rounded-lg border border-n-weak px-2 py-1.5 text-[10px] font-medium text-n-slate-12 hover:bg-n-alpha-2"
+                :aria-label="t('CONVERSATION_SIDEBAR.NERK.COPY_CART_LINK')"
+                @click="copyLink('cart', cartUrl)"
+              >
+                <span class="i-lucide-link size-3.5 shrink-0" />
+                <span class="truncate">
+                  {{
+                    copied === 'cart'
+                      ? t('CONVERSATION_SIDEBAR.NERK.COPIED')
+                      : t('CONVERSATION_SIDEBAR.NERK.CART_ACTION')
+                  }}
+                </span>
+              </button>
+              <button
+                v-if="paymentUrl"
+                type="button"
+                class="flex min-w-0 items-center justify-center gap-1 rounded-lg bg-n-slate-12 px-2 py-1.5 text-[10px] font-medium text-white hover:opacity-90"
+                :aria-label="t('CONVERSATION_SIDEBAR.NERK.COPY_PAYMENT_LINK')"
+                @click="copyLink('payment', paymentUrl)"
+              >
+                <span class="i-lucide-credit-card size-3.5 shrink-0" />
+                <span class="truncate">
+                  {{
+                    copied === 'payment'
+                      ? t('CONVERSATION_SIDEBAR.NERK.COPIED')
+                      : t('CONVERSATION_SIDEBAR.NERK.PAYMENT_ACTION')
+                  }}
+                </span>
+              </button>
+              <a
+                v-if="backofficeUrl"
+                :href="backofficeUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex min-w-0 items-center justify-center gap-1 rounded-lg border border-n-weak px-2 py-1.5 text-[10px] font-medium text-n-slate-12 hover:bg-n-alpha-2"
+              >
+                <span class="i-lucide-external-link size-3.5 shrink-0" />
+                <span class="truncate">{{
+                  t('CONVERSATION_SIDEBAR.NERK.BACKOFFICE_ACTION')
+                }}</span>
+              </a>
+            </div>
+            <div
               class="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-n-alpha-2 p-1"
             >
               <button
@@ -1556,77 +1638,148 @@ defineExpose({ open });
             <div
               class="mb-2 rounded-lg border border-n-weak bg-n-alpha-2 p-2.5"
             >
-              <div class="flex items-center gap-2">
-                <span class="i-lucide-truck size-4 text-n-slate-12" />
-                <p class="nerk-display text-sm font-semibold text-n-slate-12">
-                  {{ t('CONVERSATION_SIDEBAR.NERK.SHIPPING_CONFIGURATION') }}
-                </p>
-              </div>
-              <div class="mt-2 grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
-                <label
-                  class="text-[10px] uppercase tracking-wide text-n-slate-10"
-                >
-                  {{ t('CONVERSATION_SIDEBAR.NERK.DELIVERY_ADDRESS') }}
-                  <ComboBox
-                    :model-value="selectedAddressId"
-                    :options="addressOptions"
-                    :placeholder="t('CONVERSATION_SIDEBAR.NERK.SELECT_ADDRESS')"
-                    :search-placeholder="
-                      t('CONVERSATION_SIDEBAR.NERK.SEARCH_ADDRESS')
-                    "
-                    :empty-state="
-                      t('CONVERSATION_SIDEBAR.NERK.ADDRESS_REQUIRED')
-                    "
-                    :disabled="!customerAddresses.length || saving"
-                    :clearable="false"
-                    active-color="slate"
-                    class="mt-1 [&_button]:!px-2 [&_button]:!py-1.5 [&_button]:!text-xs"
-                    @update:model-value="selectAddress"
-                  />
-                </label>
-                <label
-                  class="text-[10px] uppercase tracking-wide text-n-slate-10"
-                >
-                  {{ t('CONVERSATION_SIDEBAR.NERK.SHIPPING_DISCOUNT') }}
-                  <input
-                    v-model="shippingDiscountInput"
-                    type="text"
-                    inputmode="decimal"
-                    :disabled="!selectedAddress || saving || !lines.length"
-                    class="nerk-display mt-1 w-full rounded-lg border border-n-weak bg-n-solid-1 px-2 py-1.5 text-xs"
-                    @focus="editShippingDiscount"
-                    @blur="commitShippingDiscount"
-                    @keydown.enter.prevent="$event.target.blur()"
-                  />
-                  <span
-                    class="mt-1 block text-[9px] normal-case text-n-slate-10"
+              <div class="flex items-start gap-2">
+                <span
+                  class="i-lucide-map-pin mt-0.5 size-4 shrink-0 text-n-slate-12"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1.5">
+                    <p
+                      class="text-[9px] font-medium uppercase tracking-wide text-n-slate-10"
+                    >
+                      {{ t('CONVERSATION_SIDEBAR.NERK.DELIVERY_ADDRESS') }}
+                    </p>
+                    <span
+                      v-if="
+                        selectedAddress?.isDefault ||
+                        selectedAddress?.is_default
+                      "
+                      class="rounded bg-n-slate-12 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-wide text-white"
+                    >
+                      {{ t('CONVERSATION_SIDEBAR.NERK.DEFAULT_ADDRESS') }}
+                    </span>
+                    <span
+                      v-if="quote?.shipping?.fallback_reason"
+                      class="i-lucide-info size-3 text-n-slate-9"
+                      :title="quote.shipping.fallback_reason"
+                      :aria-label="quote.shipping.fallback_reason"
+                    />
+                  </div>
+                  <p
+                    class="mt-0.5 text-[11px] font-medium leading-4 text-n-slate-12"
                   >
+                    {{
+                      selectedAddress
+                        ? addressLabel(selectedAddress)
+                        : t('CONVERSATION_SIDEBAR.NERK.ADDRESS_REQUIRED')
+                    }}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="flex shrink-0 items-center gap-1 rounded-md border border-n-weak bg-n-solid-1 px-2 py-1 text-[9px] font-medium text-n-slate-12 hover:bg-n-alpha-2"
+                  :disabled="saving"
+                  @click="toggleAddressPicker"
+                >
+                  <span
+                    :class="
+                      addressPickerOpen ? 'i-lucide-x' : 'i-lucide-pencil-line'
+                    "
+                    class="size-3"
+                  />
+                  {{
+                    addressPickerOpen
+                      ? t('CONVERSATION_SIDEBAR.NERK.CLOSE')
+                      : t('CONVERSATION_SIDEBAR.NERK.CHANGE_ADDRESS')
+                  }}
+                </button>
+              </div>
+
+              <div
+                v-if="addressPickerOpen"
+                class="mt-2 overflow-hidden rounded-lg border border-n-weak bg-n-solid-1"
+              >
+                <div class="relative border-b border-n-weak">
+                  <span
+                    class="i-lucide-search absolute left-2.5 top-2.5 size-3.5 text-n-slate-9"
+                  />
+                  <input
+                    v-model="addressSearch"
+                    type="search"
+                    :placeholder="t('CONVERSATION_SIDEBAR.NERK.SEARCH_ADDRESS')"
+                    class="w-full border-0 bg-transparent py-2 pl-8 pr-2 text-[11px] text-n-slate-12 outline-none"
+                  />
+                </div>
+                <div class="max-h-28 overflow-y-auto overscroll-contain p-1">
+                  <button
+                    v-for="address in filteredAddresses"
+                    :key="address.id"
+                    type="button"
+                    class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-n-alpha-2"
+                    :class="
+                      address.id === selectedAddressId ? 'bg-n-alpha-2' : ''
+                    "
+                    @click="selectAddress(address.id)"
+                  >
+                    <span
+                      class="mt-0.5 size-3.5 shrink-0"
+                      :class="
+                        address.id === selectedAddressId
+                          ? 'i-lucide-circle-check text-n-slate-12'
+                          : 'i-lucide-map-pin text-n-slate-9'
+                      "
+                    />
+                    <span class="text-[10px] leading-4 text-n-slate-12">
+                      {{ addressLabel(address) }}
+                    </span>
+                  </button>
+                  <p
+                    v-if="!filteredAddresses.length"
+                    class="px-2 py-3 text-center text-[10px] text-n-slate-10"
+                  >
+                    {{ t('CONVERSATION_SIDEBAR.NERK.ADDRESS_NOT_FOUND') }}
+                  </p>
+                </div>
+                <a
+                  v-if="profileUrl"
+                  :href="profileSectionUrl('addresses')"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center justify-center gap-1 border-t border-n-weak px-2 py-1.5 text-[10px] font-medium text-n-slate-12 hover:bg-n-alpha-2"
+                >
+                  <span class="i-lucide-plus size-3" />
+                  {{ t('CONVERSATION_SIDEBAR.NERK.ADD_NEW_ADDRESS') }}
+                </a>
+              </div>
+
+              <label
+                class="mt-2 flex items-center justify-between gap-2 rounded-lg bg-n-solid-1 px-2.5 py-2"
+              >
+                <span class="min-w-0">
+                  <span
+                    class="block text-[9px] font-medium uppercase tracking-wide text-n-slate-10"
+                  >
+                    {{ t('CONVERSATION_SIDEBAR.NERK.SHIPPING_DISCOUNT') }}
+                  </span>
+                  <span class="block text-[9px] text-n-slate-9">
                     {{
                       t('CONVERSATION_SIDEBAR.NERK.SHIPPING_DISCOUNT_LIMIT', {
                         amount: formatCurrency(shippingDiscountLimitCents),
                       })
                     }}
                   </span>
-                </label>
-              </div>
-              <div class="mt-1.5 flex items-center justify-between gap-2">
-                <p class="truncate text-[10px] text-n-slate-10">
-                  {{
-                    selectedAddress
-                      ? addressLabel(selectedAddress)
-                      : t('CONVERSATION_SIDEBAR.NERK.ADDRESS_REQUIRED')
-                  }}
-                </p>
-                <a
-                  v-if="profileUrl"
-                  :href="profileSectionUrl('addresses')"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="shrink-0 text-[10px] font-medium text-n-brand hover:underline"
-                >
-                  {{ t('CONVERSATION_SIDEBAR.NERK.ADD_NEW_ADDRESS') }}
-                </a>
-              </div>
+                </span>
+                <input
+                  v-model="shippingDiscountInput"
+                  type="text"
+                  inputmode="decimal"
+                  :disabled="!selectedAddress || saving || !lines.length"
+                  class="nerk-display w-24 shrink-0 rounded-md border border-n-weak bg-n-alpha-1 px-2 py-1.5 text-right text-xs text-n-slate-12"
+                  @focus="editShippingDiscount"
+                  @blur="commitShippingDiscount"
+                  @keydown.enter.prevent="$event.target.blur()"
+                />
+              </label>
               <ComboBox
                 v-if="quote?.shipping?.options?.length"
                 :model-value="shippingServiceId"
@@ -1642,12 +1795,6 @@ defineExpose({ open });
                 class="mt-2 [&_button]:!px-2 [&_button]:!py-1.5 [&_button]:!text-xs"
                 @update:model-value="selectShippingService"
               />
-              <p
-                v-else-if="quote?.shipping?.fallback_reason"
-                class="mt-2 text-[10px] text-n-slate-10"
-              >
-                {{ quote.shipping.fallback_reason }}
-              </p>
             </div>
             <label
               class="block text-[10px] uppercase tracking-wide text-n-slate-10"
@@ -1715,39 +1862,6 @@ defineExpose({ open });
                 </dd>
               </div>
             </dl>
-            <div v-if="cartUrl" class="mt-3 grid grid-cols-3 gap-1.5">
-              <button
-                type="button"
-                class="rounded-lg border border-n-weak px-2 py-2 text-[11px] font-medium text-n-slate-12"
-                @click="copyLink('cart', cartUrl)"
-              >
-                {{
-                  copied === 'cart'
-                    ? t('CONVERSATION_SIDEBAR.NERK.COPIED')
-                    : t('CONVERSATION_SIDEBAR.NERK.COPY_CART_LINK')
-                }}
-              </button>
-              <button
-                type="button"
-                class="rounded-lg bg-n-slate-12 px-2 py-2 text-[11px] font-medium text-white"
-                @click="copyLink('payment', paymentUrl)"
-              >
-                {{
-                  copied === 'payment'
-                    ? t('CONVERSATION_SIDEBAR.NERK.COPIED')
-                    : t('CONVERSATION_SIDEBAR.NERK.COPY_PAYMENT_LINK')
-                }}
-              </button>
-              <a
-                v-if="backofficeUrl"
-                :href="backofficeUrl"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="rounded-lg border border-n-weak px-2 py-2 text-center text-[11px] font-medium text-n-slate-12"
-              >
-                {{ t('CONVERSATION_SIDEBAR.NERK.OPEN_BACKOFFICE') }}
-              </a>
-            </div>
           </div>
         </aside>
       </div>
